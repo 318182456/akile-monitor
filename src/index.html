@@ -515,6 +515,71 @@
     .toast.show {
       transform: translateY(0);
     }
+
+    /* 搜索栏与分页样式 */
+    .search-filter-wrapper {
+      display: flex;
+      gap: 1rem;
+      margin: 1.5rem 0;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .search-input {
+      flex: 1;
+      min-width: 260px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      color: white;
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .pagination-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 2.5rem;
+      grid-column: 1 / -1;
+      flex-wrap: wrap;
+    }
+    .pagination-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 1rem;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    .pagination-btn:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+    .pagination-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+    }
+    .pagination-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .pagination-info {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin: 0 0.5rem;
+    }
   </style>
 </head>
 <body>
@@ -552,12 +617,20 @@
         </div>
       </div>
       
+      <!-- 搜索过滤栏 -->
+      <div class="search-filter-wrapper">
+        <input type="text" id="searchQuery" class="search-input" placeholder="输入名称、节点或地区进行检索 (支持模糊查询)..." oninput="onSearchInput()">
+      </div>
+      
       <div class="vps-grid" id="vpsGrid">
         <div class="empty-state">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
           <p>正在获取 VPS 列表与三网连通数据...</p>
         </div>
       </div>
+      
+      <!-- 分页控制栏 -->
+      <div id="paginationWrapper" class="pagination-container"></div>
     </div>
   </div>
 
@@ -667,6 +740,11 @@
   <script>
     let globalVpsList = [];
     let activeTab = 'all';
+    
+    // 分页与搜索状态变量
+    let currentPage = 1;
+    const pageSize = 12; // 每页显示 12 个卡片
+    let searchQuery = "";
 
     // 针对国旗名称做简单的 emoji 转换
     function getAreaEmoji(areaName) {
@@ -719,8 +797,36 @@
       renderVpsList();
     }
 
+    // 统一汇率换算为人民币 (CNY)
+    function formatToCNY(price, areaName) {
+      if (!price) return "¥0.00";
+      let val = parseFloat(price);
+      if (Number.isInteger(val) && val > 100) {
+        val = val / 100;
+      } else if (typeof price === "string" && !price.includes(".") && val > 100) {
+        val = val / 100;
+      }
+      return "¥" + val.toFixed(2);
+    }
+
+    function onSearchInput() {
+      searchQuery = document.getElementById("searchQuery").value.trim().toLowerCase();
+      currentPage = 1; // 检索时重置为第一页
+      renderVpsList();
+    }
+
+    function changePage(page) {
+      currentPage = page;
+      renderVpsList();
+      // 平滑滚动回顶部
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     function renderVpsList() {
       const container = document.getElementById("vpsGrid");
+      const paginationWrapper = document.getElementById("paginationWrapper");
+      
+      // 1. 基准筛选 (低价监控归档 vs 最近新上架)
       let filtered = [...globalVpsList];
 
       if (activeTab === 'new') {
@@ -735,16 +841,45 @@
         filtered.sort((a, b) => a.price - b.price);
       }
 
-      if (filtered.length === 0) {
+      // 2. 搜索框检索过滤 (多字段匹配)
+      if (searchQuery) {
+        filtered = filtered.filter(item => {
+          const name = (item.name || "").toLowerCase();
+          const area = (item.area || "").toLowerCase();
+          const node = (item.nodeName || "").toLowerCase();
+          const specs = (item.specs || "").toLowerCase();
+          return name.includes(searchQuery) || 
+                 area.includes(searchQuery) || 
+                 node.includes(searchQuery) || 
+                 specs.includes(searchQuery);
+        });
+      }
+
+      // 3. 计算分页
+      const totalItems = filtered.length;
+      const totalPages = Math.ceil(totalItems / pageSize) || 1;
+      
+      // 校正当前页，防止溢出
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const pageItems = filtered.slice(startIndex, endIndex);
+
+      // 4. 空数据处理
+      if (totalItems === 0) {
         container.innerHTML = `
           <div class="empty-state">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <p>${activeTab === 'new' ? '最近时间段内暂无新上架的 VPS 商品' : '暂无符合价格阈值的便宜 VPS'}</p>
+            <p>${activeTab === 'new' ? '最近时间段内暂无匹配的新上架 VPS 商品' : '暂无符合检索条件的 VPS 数据'}</p>
           </div>`;
+        paginationWrapper.innerHTML = "";
         return;
       }
 
-      container.innerHTML = filtered.map(item => {
+      // 5. 渲染卡片
+      container.innerHTML = pageItems.map(item => {
         const flag = getAreaEmoji(item.area);
         const ipStatus = item.ipStatus || "[IP检测中]";
         let ipClass = "ip-unknown";
@@ -770,7 +905,7 @@
               </div>
               <div style="display: flex; align-items: center;">
                 <span class="vps-update-time">${new Date(item.updatedAt).toLocaleTimeString()}</span>
-                <button class="btn-trend" onclick="openHistoryChart('${item.name}', '${item.nodeName || ''}', ${item.serverPrice || item.price}, ${item.price})" title="查看历史价格走势">
+                <button class="btn-trend" onclick="openHistoryChart('${item.name}', '${item.nodeName || ''}', ${item.serverPrice || item.price}, ${item.price}, '${item.area}')" title="查看历史价格走势">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
                 </button>
               </div>
@@ -797,7 +932,7 @@
               </tr>
               <tr>
                 <td class="label">续费价格</td>
-                <td class="value" style="color: #fbbf24;">￥${item.serverPrice || item.price}/${item.serverCycle ? item.serverCycle + '月' : '月'}</td>
+                <td class="value" style="color: #fbbf24;">${formatToCNY(item.serverPrice || item.price, item.area)}/${item.serverCycle ? item.serverCycle + '月' : '月'}</td>
               </tr>
               <tr>
                 <td class="label">到期时间</td>
@@ -807,7 +942,7 @@
 
             <div class="vps-footer-row">
               <div class="price-tag">
-                ￥${item.price}
+                ${formatToCNY(item.price, "人民币")}
                 <span>${item.type === 'store' ? '官方上新' : '交易市场'}</span>
               </div>
               <a href="${item.link}" target="_blank" class="btn-buy">
@@ -817,6 +952,14 @@
           </div>
         `;
       }).join("");
+
+      // 6. 渲染分页按钮
+      let pagHtml = `
+        <button class="pagination-btn" ${currentPage === 1 ? "disabled" : ""} onclick="changePage(${currentPage - 1})">上一页</button>
+        <span class="pagination-info">${currentPage} / ${totalPages} 页 (共 ${totalItems} 台)</span>
+        <button class="pagination-btn" ${currentPage === totalPages ? "disabled" : ""} onclick="changePage(${currentPage + 1})">下一页</button>
+      `;
+      paginationWrapper.innerHTML = pagHtml;
     }
 
     async function fetchVpsList() {
@@ -835,10 +978,10 @@
       }
     }
 
-    async function openHistoryChart(name, nodeName, renewPrice, currentPrice) {
+    async function openHistoryChart(name, nodeName, renewPrice, currentPrice, areaName) {
       document.getElementById("modalVpsName").innerText = `${name} 历史交易价格走势图`;
-      document.getElementById("statRenewPrice").innerText = `¥${renewPrice.toFixed(2)}`;
-      document.getElementById("statCurrentPrice").innerText = `¥${currentPrice.toFixed(2)}`;
+      document.getElementById("statRenewPrice").innerText = formatToCNY(renewPrice, areaName);
+      document.getElementById("statCurrentPrice").innerText = formatToCNY(currentPrice, "人民币");
       
       const overlay = document.getElementById("historyModal");
       overlay.classList.add("active");
@@ -852,8 +995,8 @@
 
         if (!history || history.length === 0) {
           g.innerHTML = `<text x="400" y="150" fill="var(--text-muted)" font-size="14" text-anchor="middle">暂无该配置的成交历史波动</text>`;
-          document.getElementById("statAvgPrice").innerText = `¥${currentPrice.toFixed(2)}`;
-          document.getElementById("statPriceRange").innerText = `¥${currentPrice.toFixed(2)}`;
+          document.getElementById("statAvgPrice").innerText = formatToCNY(currentPrice, "人民币");
+          document.getElementById("statPriceRange").innerText = formatToCNY(currentPrice, "人民币");
           document.getElementById("chartTotalSales").innerText = "1 笔上架";
           document.getElementById("chartDateRange").innerText = `截止 ${new Date().toLocaleDateString()}`;
           return;
@@ -865,8 +1008,8 @@
         const sum = prices.reduce((a, b) => a + b, 0);
         const avgPrice = sum / prices.length;
 
-        document.getElementById("statAvgPrice").innerText = `¥${avgPrice.toFixed(2)}`;
-        document.getElementById("statPriceRange").innerText = `¥${minPrice.toFixed(2)} - ¥${maxPrice.toFixed(2)}`;
+        document.getElementById("statAvgPrice").innerText = formatToCNY(avgPrice, "人民币");
+        document.getElementById("statPriceRange").innerText = `${formatToCNY(minPrice, "人民币")} - ${formatToCNY(maxPrice, "人民币")}`;
         document.getElementById("chartTotalSales").innerText = `${history.length} 笔成交`;
 
         const firstDate = new Date(history[0].updatedAt).toLocaleDateString();

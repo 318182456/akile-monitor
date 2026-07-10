@@ -135,7 +135,7 @@ export default {
           server_price as serverPrice, server_cycle as serverCycle, ipv4_num as ipv4Num, ipv6_num as ipv6Num,
           ip_status as ipStatus, ip_check_detail as ipCheckDetail, reset_price as resetPrice
         FROM vps_records
-        WHERE updated_at >= datetime('now', '-24 hours') -- 限制拉取 24 小时内的记录，防止列表无限变大
+        WHERE stock > 0
       `).all<any>();
 
       if (!results) return [];

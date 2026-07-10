@@ -265,6 +265,26 @@ export async function checkMarket(env: Env, settings: Settings): Promise<void> {
         await env.KV.put(uniqueKey, "true", { expirationTtl: 172800 });
       }
     }
+
+    // --- 下架同步逻辑 ---
+    // 获取本次拉取到的所有二手机 ID 集合
+    const currentMarketIds = json.list.map(item => `market_${item.id}`);
+    
+    // 如果返回数据完整 (比如至少包含一定数量的商品)，说明获取接口数据正常。
+    // 我们将 D1 中所有 type='market' 且 id 不在 currentMarketIds 集合里的记录，其 stock 标记为 0 (下架隐藏)。
+    if (currentMarketIds.length > 0) {
+      try {
+        // SQLite 不支持直接绑定动态长度数组，我们可以通过在 JS 中构建占位符来安全执行
+        const placeholders = currentMarketIds.map(() => "?").join(",");
+        await env.DB.prepare(`
+          UPDATE vps_records 
+          SET stock = 0 
+          WHERE type = 'market' AND id NOT IN (${placeholders})
+        `).bind(...currentMarketIds).run();
+      } catch (err) {
+        console.error(`Failed to update sold/delisted market products: ${err}`);
+      }
+    }
   } catch (e) {
     console.error(`Market check error: ${e}`);
   }
