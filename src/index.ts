@@ -4,6 +4,8 @@ export interface Env {
   TG_CHAT_ID?: string;
   MAX_PRICE?: string;
   MARKET_MONITOR_ENABLED?: string;
+  AKILE_AUTH_TOKEN?: string;
+  WECHAT_WEBHOOK?: string;
 }
 
 // 对应 Looking Glass 的延迟测量目标
@@ -72,9 +74,10 @@ interface StoreResponse {
   };
 }
 
-interface MarketItem {
+// 二手交易所新数据结构 (对应 GetPushProductList)
+interface PushProduct {
   id: number;
-  name: string;
+  product_name: string;
   price: number;
   cycle: number;
   cpu: number;
@@ -82,12 +85,16 @@ interface MarketItem {
   disk: number;
   bandwidth: number;
   flow: number;
+  area_name: string;
+  due_time?: number;
 }
 
-interface MarketResponse {
+interface PushProductResponse {
   status_code: number;
   status_msg: string;
-  list?: MarketItem[];
+  data?: {
+    list?: PushProduct[];
+  };
 }
 
 export interface VpsRecord {
@@ -108,6 +115,8 @@ export interface Settings {
   tgChatId: string;
   maxPrice: number;
   marketMonitorEnabled: boolean;
+  akileAuthToken: string;
+  wechatWebhook: string;
 }
 
 export default {
@@ -170,6 +179,8 @@ export default {
       if (body.tgChatId !== undefined) settings.tgChatId = body.tgChatId;
       if (body.maxPrice !== undefined) settings.maxPrice = body.maxPrice;
       if (body.marketMonitorEnabled !== undefined) settings.marketMonitorEnabled = body.marketMonitorEnabled;
+      if (body.akileAuthToken !== undefined) settings.akileAuthToken = body.akileAuthToken;
+      if (body.wechatWebhook !== undefined) settings.wechatWebhook = body.wechatWebhook;
 
       await env.KV.put("config:settings", JSON.stringify(settings));
       return new Response(JSON.stringify({ success: true, settings }), {
@@ -189,7 +200,9 @@ export default {
       tgBotToken: env.TG_BOT_TOKEN || "",
       tgChatId: env.TG_CHAT_ID || "",
       maxPrice: parseFloat(env.MAX_PRICE || "20"),
-      marketMonitorEnabled: env.MARKET_MONITOR_ENABLED === "true"
+      marketMonitorEnabled: env.MARKET_MONITOR_ENABLED === "true",
+      akileAuthToken: env.AKILE_AUTH_TOKEN || "",
+      wechatWebhook: env.WECHAT_WEBHOOK || ""
     };
   },
 
@@ -286,24 +299,54 @@ export default {
   async checkMarket(env: Env, settings: Settings): Promise<void> {
     if (!settings.marketMonitorEnabled) return;
 
+    // 若未填写 Token，自动略过，避免每次执行触发 401
+    if (!settings.akileAuthToken) {
+      console.warn("Market monitor is enabled but Akile Authorization Token is not configured. Suppressing check to avoid 401 errors.");
+      return;
+    }
+
     try {
-      const url = "https://api.akile.io/api/v1/market/GetMarketList";
+      const url = "https://api.akile.ai/api/v1/pushshop/GetPushProductList";
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json;charset=UTF-8",
+        "Referer": "https://akile.ai/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-ch-ua": '"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+        "sec-ch-ua-mobile": "?0"
+      };
+
+      headers["Authorization"] = settings.akileAuthToken.trim();
+
       const res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        },
-        body: JSON.stringify({ page_num: 1, page_size: 20 })
+        headers,
+        body: JSON.stringify({
+          area_name: "",
+          name: "",
+          page_num: 1,
+          page_size: 300
+        })
       });
-      if (!res.ok) return;
-      const json = await res.json() as MarketResponse;
-      if (json.status_code !== 0 || !json.list) return;
+      if (res.status === 401) {
+        console.error("Market pushshop API returned 401 Unauthorized. The Token has expired or is invalid.");
+        return;
+      }
+      if (!res.ok) {
+        console.error(`Market pushshop API error. HTTP Status: ${res.status}`);
+        return;
+      }
+      const json = await res.json() as PushProductResponse;
+      if (json.status_code !== 0 || !json.data?.list) {
+        console.warn(`Market pushshop API returned code: ${json.status_code}`);
+        return;
+      }
 
-      for (const item of json.list) {
+      for (const item of json.data.list) {
         if (item.price <= settings.maxPrice) {
           // 延迟测速
-          const matches = Object.keys(LATENCY_TARGETS).filter(k => item.name.includes(k));
+          const matches = Object.keys(LATENCY_TARGETS).filter(k => item.product_name.includes(k) || item.area_name.includes(k));
           const lgUrl = matches.length > 0 ? LATENCY_TARGETS[matches[0]] : undefined;
           const latency = lgUrl ? await testLatency(lgUrl) : undefined;
 
@@ -311,12 +354,12 @@ export default {
           const record: VpsRecord = {
             id,
             type: "market",
-            area: matches.length > 0 ? matches[0] : "交易市场",
-            name: item.name,
+            area: item.area_name || (matches.length > 0 ? matches[0] : "交易市场"),
+            name: item.product_name,
             price: item.price,
             stock: 1,
             specs: `${item.cpu}核 / ${item.memory}M / ${item.disk}G | ${item.flow}G流量 | ${item.bandwidth}M带宽`,
-            link: "https://akile.io/exchange",
+            link: "https://akile.ai/",
             latency,
             updatedAt: new Date().toISOString()
           };
@@ -329,7 +372,7 @@ export default {
             await this.notify(env, settings, {
               type: "market",
               title: `[市场低价] 二手机上架`,
-              planName: item.name,
+              planName: item.product_name,
               price: item.price,
               stock: 1,
               specs: record.specs + (latency ? ` | 测速: ${latency}ms` : ""),
@@ -345,31 +388,57 @@ export default {
   },
 
   async notify(env: Env, settings: Settings, data: { type: string; title: string; planName: string; price: number; stock: number; specs: string; link: string }): Promise<void> {
-    if (!settings.tgBotToken || !settings.tgChatId) {
-      console.log("Notification credentials missing. Outputting log:", data);
-      return;
+    // 1. TG 通道推送
+    if (settings.tgBotToken && settings.tgChatId) {
+      const message = `🔔 *${data.title}*\n\n` +
+        `📦 *商品:* ${data.planName}\n` +
+        `💰 *价格:* ${data.price} JPY/CNY (库存: ${data.stock})\n` +
+        `💻 *配置:* ${data.specs}\n\n` +
+        `🔗 [立即购买](${data.link})`;
+
+      try {
+        const url = `https://api.telegram.org/bot${settings.tgBotToken}/sendMessage`;
+        await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: settings.tgChatId,
+            text: message,
+            parse_mode: "Markdown",
+            disable_web_page_preview: true
+          })
+        });
+      } catch (e) {
+        console.error("Failed to send telegram notification:", e);
+      }
     }
 
-    const message = `🔔 *${data.title}*\n\n` +
-      `📦 *商品:* ${data.planName}\n` +
-      `💰 *价格:* ${data.price} JPY/CNY (库存: ${data.stock})\n` +
-      `💻 *配置:* ${data.specs}\n\n` +
-      `🔗 [立即购买](${data.link})`;
+    // 2. 企业微信 Webhook 通道推送
+    if (settings.wechatWebhook) {
+      const markdownContent = `🔔 **${data.title}**\n\n` +
+        `>📦 **商品:** <font color="comment">${data.planName}</font>\n` +
+        `>💰 **价格:** <font color="warning">${data.price} JPY/CNY</font> (库存: ${data.stock})\n` +
+        `>💻 **配置:** ${data.specs}\n\n` +
+        `[立即购买](${data.link})`;
 
-    try {
-      const url = `https://api.telegram.org/bot${settings.tgBotToken}/sendMessage`;
-      await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: settings.tgChatId,
-          text: message,
-          parse_mode: "Markdown",
-          disable_web_page_preview: true
-        })
-      });
-    } catch (e) {
-      console.error("Failed to send telegram notification:", e);
+      try {
+        await fetch(settings.wechatWebhook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            msgtype: "markdown",
+            markdown: {
+              content: markdownContent
+            }
+          })
+        });
+      } catch (e) {
+        console.error("Failed to send WeChat Work Webhook notification:", e);
+      }
+    }
+
+    if (!settings.tgBotToken && !settings.wechatWebhook) {
+      console.log("No notification channels configured. Outputting alert to console:", data);
     }
   }
 };
@@ -728,16 +797,24 @@ const DASHBOARD_HTML = `
       <div class="card-title">监控策略与通知配置</div>
       <form id="settingsForm" onsubmit="saveSettings(event)">
         <div class="form-group">
-          <label for="tgBotToken">Telegram Bot Token</label>
-          <input type="password" id="tgBotToken" placeholder="输入 TG 机器人 Token" required>
+          <label for="tgBotToken">Telegram Bot Token (非必填)</label>
+          <input type="password" id="tgBotToken" placeholder="输入 TG 机器人 Token">
         </div>
         <div class="form-group">
-          <label for="tgChatId">Telegram Chat ID</label>
-          <input type="text" id="tgChatId" placeholder="输入接收通知的 Chat ID" required>
+          <label for="tgChatId">Telegram Chat ID (非必填)</label>
+          <input type="text" id="tgChatId" placeholder="输入接收通知的 Chat ID">
+        </div>
+        <div class="form-group">
+          <label for="wechatWebhook">企业微信群 Webhook URL (非必填)</label>
+          <input type="password" id="wechatWebhook" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...">
         </div>
         <div class="form-group">
           <label for="maxPrice">最大通知价格阈值 (JPY/CNY)</label>
           <input type="number" id="maxPrice" placeholder="如 20" required>
+        </div>
+        <div class="form-group">
+          <label for="akileAuthToken">Akile Authorization Token</label>
+          <input type="password" id="akileAuthToken" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpX...">
         </div>
         <div class="form-group switch-container">
           <label for="marketMonitor">监控二手交易市场 (Exchange)</label>
@@ -818,6 +895,8 @@ const DASHBOARD_HTML = `
         document.getElementById("tgBotToken").value = settings.tgBotToken || "";
         document.getElementById("tgChatId").value = settings.tgChatId || "";
         document.getElementById("maxPrice").value = settings.maxPrice || 20;
+        document.getElementById("akileAuthToken").value = settings.akileAuthToken || "";
+        document.getElementById("wechatWebhook").value = settings.wechatWebhook || "";
         document.getElementById("marketMonitor").checked = settings.marketMonitorEnabled;
       } catch (e) {
         console.error(e);
@@ -828,14 +907,22 @@ const DASHBOARD_HTML = `
       e.preventDefault();
       const tgBotToken = document.getElementById("tgBotToken").value;
       const tgChatId = document.getElementById("tgChatId").value;
+      const wechatWebhook = document.getElementById("wechatWebhook").value;
       const maxPrice = parseFloat(document.getElementById("maxPrice").value);
+      const akileAuthToken = document.getElementById("akileAuthToken").value;
       const marketMonitorEnabled = document.getElementById("marketMonitor").checked;
+
+      // 验证至少配置了一个通道
+      if (!wechatWebhook && (!tgBotToken || !tgChatId)) {
+        showToast("请至少完整填写 Telegram 推送或企业微信群 Webhook 之一！", true);
+        return;
+      }
 
       try {
         const res = await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tgBotToken, tgChatId, maxPrice, marketMonitorEnabled })
+          body: JSON.stringify({ tgBotToken, tgChatId, maxPrice, akileAuthToken, wechatWebhook, marketMonitorEnabled })
         });
         if (res.ok) {
           showToast("配置保存成功！");
