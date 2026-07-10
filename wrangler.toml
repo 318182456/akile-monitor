@@ -17,9 +17,18 @@ enabled = false
 persist = true
 head_sampling_rate = 1
 
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
 
 [[kv_namespaces]]
 binding = "KV"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "akile-db"
 
 [triggers]
 crons = ["*/1 * * * *"] # Every minute

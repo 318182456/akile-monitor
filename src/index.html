@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Akile VPS 交易监控中心</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(22, 28, 45, 0.7);
+      --border: rgba(255, 255, 255, 0.08);
+      --primary: #3b82f6;
+      --primary-hover: #60a5fa;
+      --accent: #10b981;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.1) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(to right, #60a5fa, #10b981);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .header-actions {
+      display: flex;
+      gap: 1rem;
+    }
+    
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
+    }
+    .btn:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px 0 rgba(59, 130, 246, 0.4);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 1.5rem auto;
+      padding: 0 1.5rem;
+      width: 100%;
+      flex-grow: 1;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.5rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* 选项卡样式 */
+    .tabs-header {
+      display: flex;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.5rem;
+      align-items: center;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .tab-btn.active {
+      color: white;
+      background: var(--primary);
+    }
+
+    /* 时间过滤样式 */
+    .time-filter {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-left: auto;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    .time-filter select {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      color: white;
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    /* VPS 网格布局 */
+    .vps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+      gap: 1.25rem;
+    }
+    @media (max-width: 640px) {
+      .vps-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .vps-card {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.3s;
+    }
+    .vps-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+    }
+    .vps-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+    .vps-name-text {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: white;
+    }
+    .vps-badge-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+    .ip-badge {
+      font-size: 0.75rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .ip-ok { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .ip-blocked { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .ip-unknown { background: rgba(107, 114, 128, 0.2); color: #d1d5db; border: 1px solid rgba(107, 114, 128, 0.3); }
+
+    .vps-update-time {
+      font-size: 0.75rem;
+      color: #10b981;
+      align-self: flex-start;
+    }
+
+    /* 三网时延横幅 */
+    .vps-latency-bars {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+    }
+    .latency-bar {
+      flex: 1;
+      padding: 0.35rem;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .latency-bar.ct { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border-color: rgba(59, 130, 246, 0.2); }
+    .latency-bar.cu { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border-color: rgba(245, 158, 11, 0.2); }
+    .latency-bar.cm { background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.2); }
+
+    /* 高保真属性表格 */
+    .vps-details-table {
+      width: 100%;
+      margin: 0.5rem 0 1rem 0;
+      font-size: 0.85rem;
+      border-collapse: collapse;
+    }
+    .vps-details-table tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .vps-details-table td {
+      padding: 0.4rem 0;
+    }
+    .vps-details-table td.label {
+      color: var(--text-muted);
+      width: 80px;
+    }
+    .vps-details-table td.value {
+      color: var(--text);
+      font-weight: 500;
+    }
+    
+    /* 底部价格与动作按钮 */
+    .vps-footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: auto;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+    }
+    .price-tag {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #34d399;
+    }
+    .price-tag span {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: 0.25rem;
+      font-weight: 400;
+    }
+
+    .btn-buy {
+      background: var(--primary);
+      color: white;
+      text-decoration: none;
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-buy:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-trend {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.25rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 0.5rem;
+    }
+    .btn-trend:hover {
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--primary-hover);
+      border-color: var(--primary);
+    }
+
+    /* 历史走势模态弹窗 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(3, 7, 18, 0.8);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-content {
+      background: #111827;
+      border: 1px solid var(--border);
+      width: 100%;
+      max-width: 900px;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      transform: scale(0.95);
+      transition: transform 0.3s;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal-overlay.active .modal-content {
+      transform: scale(1);
+    }
+    .modal-header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1f2937;
+    }
+    .modal-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .modal-header-icon {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      border-radius: 12px;
+      padding: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-title-area h3 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: white;
+    }
+    .modal-title-area p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.5rem;
+      transition: color 0.2s;
+    }
+    .modal-close:hover {
+      color: white;
+    }
+    .modal-body {
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    /* 四个数据指示卡片 */
+    .trend-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+    @media (max-width: 768px) {
+      .trend-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    .stat-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .stat-card-icon {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 0.5rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .stat-card.primary-stat .stat-card-icon { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .stat-card.success-stat .stat-card-icon { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .stat-card-info {
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-card-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .stat-card-value {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: white;
+      margin-top: 0.15rem;
+    }
+
+    /* 走势图画布容器 */
+    .chart-container-box {
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+    }
+    .chart-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .chart-title-label {
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--primary-hover);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .chart-meta-tags {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .meta-tag {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .chart-canvas-svg {
+      width: 100%;
+      height: 300px;
+    }
+    .chart-footer-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+      grid-column: 1 / -1;
+    }
+    .empty-state svg {
+      width: 48px;
+      height: 48px;
+      stroke: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: rgba(16, 185, 129, 0.9);
+      color: white;
+      padding: 1rem 1.5rem;
+      border-radius: 12px;
+      font-weight: 600;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      transform: translateY(150%);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 100;
+    }
+    .toast.show {
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚡ Akile VPS 监控控制台</h1>
+    <div class="header-actions">
+      <button class="btn btn-secondary" onclick="window.location.href='/settings'">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span>监控配置</span>
+      </button>
+      <button class="btn" id="refreshBtn" onclick="triggerRefresh()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        <span>手动刷新 & 测速</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 主体 VPS 展示卡片 -->
+    <div class="card">
+      <div class="tabs-header">
+        <button class="tab-btn active" id="tabAll" onclick="switchTab('all')">低价监控归档</button>
+        <button class="tab-btn" id="tabNew" onclick="switchTab('new')">⏳ 最近新上架机器</button>
+        
+        <!-- 时间段筛选 (默认 2 小时) -->
+        <div class="time-filter" id="timeFilterWrapper" style="display: none;">
+          <span>上架时间范围:</span>
+          <select id="timeRangeSelect" onchange="filterNewVps()">
+            <option value="1">1 小时内</option>
+            <option value="2" selected>2 小时内</option>
+            <option value="6">6 小时内</option>
+            <option value="12">12 小时内</option>
+            <option value="24">24 小时内</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="vps-grid" id="vpsGrid">
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
+          <p>正在获取 VPS 列表与三网连通数据...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 历史成交走势图模态弹窗 -->
+  <div class="modal-overlay" id="historyModal" onclick="closeHistoryModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <div class="modal-header-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          </div>
+          <div class="modal-title-area">
+            <h3 id="modalVpsName">HKS-Standard 历史交易价格走势图</h3>
+            <p>根据历史成交记录查看该套餐的市场价格变化。</p>
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeHistoryModal(event)">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- 四个状态卡片 -->
+        <div class="trend-stats-grid">
+          <div class="stat-card">
+            <div class="stat-card-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            </div>
+            <div class="stat-card-info">
+              <span class="stat-card-label">续费价格</span>
+              <span class="stat-card-value" id="statRenewPrice">--</span>
+            </div>
+          </div>
+          <div class="stat-card success-stat">
+            <div class="stat-card-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </div>
+            <div class="stat-card-info">
+              <span class="stat-card-label">当前价格</span>
+              <span class="stat-card-value" style="color: #34d399;" id="statCurrentPrice">--</span>
+            </div>
+          </div>
+          <div class="stat-card primary-stat">
+            <div class="stat-card-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            </div>
+            <div class="stat-card-info">
+              <span class="stat-card-label">成交均价</span>
+              <span class="stat-card-value" style="color: #60a5fa;" id="statAvgPrice">--</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M8 21H3v-5M12 12l9-9M12 12l-9 9"/></svg>
+            </div>
+            <div class="stat-card-info">
+              <span class="stat-card-label">成交区间</span>
+              <span class="stat-card-value" id="statPriceRange">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 走势折线图画布 -->
+        <div class="chart-container-box">
+          <div class="chart-header-row">
+            <span class="chart-title-label">成交价格 (MARKET TREND)</span>
+            <div class="chart-meta-tags">
+              <span class="meta-tag" id="chartTotalSales">0 笔成交</span>
+              <span class="meta-tag" id="chartDateRange">时间跨度 --</span>
+            </div>
+          </div>
+
+          <!-- 动态 SVG 折线图 -->
+          <svg class="chart-canvas-svg" id="trendSvg" viewBox="0 0 800 300">
+            <!-- 渐变定义 -->
+            <defs>
+              <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+            <!-- 底部网格线 -->
+            <line x1="50" y1="50" x2="750" y2="50" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <line x1="50" y1="110" x2="750" y2="110" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <line x1="50" y1="170" x2="750" y2="170" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <line x1="50" y1="230" x2="750" y2="230" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <line x1="50" y1="260" x2="750" y2="260" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+
+            <!-- 价格 Y 轴刻度文本 -->
+            <text x="40" y="55" fill="var(--text-muted)" font-size="11" text-anchor="end" id="yLabelMax">¥35</text>
+            <text x="40" y="115" fill="var(--text-muted)" font-size="11" text-anchor="end" id="yLabelMidHigh">¥25</text>
+            <text x="40" y="175" fill="var(--text-muted)" font-size="11" text-anchor="end" id="yLabelMidLow">¥15</text>
+            <text x="40" y="235" fill="var(--text-muted)" font-size="11" text-anchor="end" id="yLabelMin">¥5</text>
+
+            <!-- 动态注入的线条、区域填充及均线 -->
+            <g id="svgDynamicContent"></g>
+          </svg>
+
+          <div class="chart-footer-note">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>历史成交价格仅供参考，实际交易价格以当前商品信息为准。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">配置保存成功！</div>
+
+  <script>
+    let globalVpsList = [];
+    let activeTab = 'all';
+
+    // 针对国旗名称做简单的 emoji 转换
+    function getAreaEmoji(areaName) {
+      if (areaName.includes("香港") || areaName.includes("HK")) return "🇨🇳";
+      if (areaName.includes("台湾") || areaName.includes("TW")) return "🇨🇳";
+      if (areaName.includes("日本") || areaName.includes("JP")) return "🇯🇵";
+      if (areaName.includes("新加坡") || areaName.includes("SG")) return "🇸🇬";
+      if (areaName.includes("美国") || areaName.includes("US") || areaName.includes("美")) return "🇺🇸";
+      if (areaName.includes("德国") || areaName.includes("DE")) return "🇩🇪";
+      if (areaName.includes("英国") || areaName.includes("UK") || areaName.includes("英")) return "🇬🇧";
+      if (areaName.includes("荷兰") || areaName.includes("NL")) return "🇳🇱";
+      if (areaName.includes("意大利") || areaName.includes("IT")) return "🇮🇹";
+      return "🌐";
+    }
+
+    // 解析 IP 正常/被墙等检测信息并输出三个标签
+    function renderLatencyBars(item) {
+      let ct = "未测试";
+      let cu = "未测试";
+      let cm = "未测试";
+
+      if (item.ipCheckDetail) {
+        const detail = item.ipCheckDetail;
+        const ctMatch = detail.match(/电信\/(\d+ms)/);
+        const cuMatch = detail.match(/联通\/(\d+ms)/);
+        const cmMatch = detail.match(/移动\/(\d+ms)/);
+        if (ctMatch) ct = ctMatch[1];
+        if (cuMatch) cu = cuMatch[1];
+        if (cmMatch) cm = cmMatch[1];
+      } else if (item.latency !== undefined) {
+        ct = item.latency + " ms";
+        cu = item.latency + " ms";
+        cm = item.latency + " ms";
+      }
+
+      return `
+        <div class="vps-latency-bars">
+          <div class="latency-bar ct">电信/${ct}</div>
+          <div class="latency-bar cu">联通/${cu}</div>
+          <div class="latency-bar cm">移动/${cm}</div>
+        </div>
+      `;
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+      document.getElementById("tabAll").classList.toggle("active", tab === 'all');
+      document.getElementById("tabNew").classList.toggle("active", tab === 'new');
+      document.getElementById("timeFilterWrapper").style.display = tab === 'new' ? 'flex' : 'none';
+      renderVpsList();
+    }
+
+    function renderVpsList() {
+      const container = document.getElementById("vpsGrid");
+      let filtered = [...globalVpsList];
+
+      if (activeTab === 'new') {
+        const hours = parseInt(document.getElementById("timeRangeSelect").value);
+        const cutoff = Date.now() - hours * 60 * 60 * 1000;
+        filtered = filtered.filter(item => {
+          const itemTime = new Date(item.updatedAt).getTime();
+          return itemTime >= cutoff;
+        });
+        filtered.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      } else {
+        filtered.sort((a, b) => a.price - b.price);
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p>${activeTab === 'new' ? '最近时间段内暂无新上架的 VPS 商品' : '暂无符合价格阈值的便宜 VPS'}</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(item => {
+        const flag = getAreaEmoji(item.area);
+        const ipStatus = item.ipStatus || "[IP检测中]";
+        let ipClass = "ip-unknown";
+        if (ipStatus.includes("正常")) ipClass = "ip-ok";
+        else if (ipStatus.includes("被墙") || ipStatus.includes("红")) ipClass = "ip-blocked";
+
+        let dueStr = "无数据";
+        if (item.dueTime) {
+          dueStr = new Date(item.dueTime * 1000).toLocaleString();
+        }
+
+        const flowLimit = item.flow ? item.flow + " GB" : "0 GB";
+        const flowUsed = item.flowUsed ? (item.flowUsed / (1024*1024*1024)).toFixed(2) + " GB" : "0 GB";
+
+        return `
+          <div class="vps-card">
+            <div class="vps-title-row">
+              <div>
+                <span class="vps-name-text">${item.name}</span>
+                <div class="vps-badge-group">
+                  <span class="ip-badge ${ipClass}">${ipStatus}</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center;">
+                <span class="vps-update-time">${new Date(item.updatedAt).toLocaleTimeString()}</span>
+                <button class="btn-trend" onclick="openHistoryChart('${item.name}', '${item.nodeName || ''}', ${item.serverPrice || item.price}, ${item.price})" title="查看历史价格走势">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                </button>
+              </div>
+            </div>
+
+            ${renderLatencyBars(item)}
+
+            <table class="vps-details-table">
+              <tr>
+                <td class="label">地区</td>
+                <td class="value">${flag} ${item.area}</td>
+              </tr>
+              <tr>
+                <td class="label">节点</td>
+                <td class="value">${item.nodeName || '默认'}</td>
+              </tr>
+              <tr>
+                <td class="label">配置</td>
+                <td class="value">${item.cpu ? item.cpu + '核' : '1核'}/${item.memory ? item.memory + 'M' : '1024M'}/${item.disk ? item.disk + 'G' : '10G'}</td>
+              </tr>
+              <tr>
+                <td class="label">网络</td>
+                <td class="value">带宽 ${item.bandwidth || '500'}M | 流量 ${flowUsed} / ${flowLimit}</td>
+              </tr>
+              <tr>
+                <td class="label">续费价格</td>
+                <td class="value" style="color: #fbbf24;">￥${item.serverPrice || item.price}/${item.serverCycle ? item.serverCycle + '月' : '月'}</td>
+              </tr>
+              <tr>
+                <td class="label">到期时间</td>
+                <td class="value">${dueStr}</td>
+              </tr>
+            </table>
+
+            <div class="vps-footer-row">
+              <div class="price-tag">
+                ￥${item.price}
+                <span>${item.type === 'store' ? '官方上新' : '交易市场'}</span>
+              </div>
+              <a href="${item.link}" target="_blank" class="btn-buy">
+                ${item.type === 'store' ? '立即抢购' : '去购买'}
+              </a>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function fetchVpsList() {
+      try {
+        const res = await fetch("/api/vps");
+        globalVpsList = await res.json();
+        renderVpsList();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function filterNewVps() {
+      if (activeTab === 'new') {
+        renderVpsList();
+      }
+    }
+
+    async function openHistoryChart(name, nodeName, renewPrice, currentPrice) {
+      document.getElementById("modalVpsName").innerText = `${name} 历史交易价格走势图`;
+      document.getElementById("statRenewPrice").innerText = `¥${renewPrice.toFixed(2)}`;
+      document.getElementById("statCurrentPrice").innerText = `¥${currentPrice.toFixed(2)}`;
+      
+      const overlay = document.getElementById("historyModal");
+      overlay.classList.add("active");
+
+      const g = document.getElementById("svgDynamicContent");
+      g.innerHTML = `<text x="400" y="150" fill="var(--text-muted)" font-size="14" text-anchor="middle">获取历史价格曲线中...</text>`;
+
+      try {
+        const res = await fetch(`/api/vps/history?name=${encodeURIComponent(name)}&nodeName=${encodeURIComponent(nodeName)}`);
+        const history = await res.json();
+
+        if (!history || history.length === 0) {
+          g.innerHTML = `<text x="400" y="150" fill="var(--text-muted)" font-size="14" text-anchor="middle">暂无该配置的成交历史波动</text>`;
+          document.getElementById("statAvgPrice").innerText = `¥${currentPrice.toFixed(2)}`;
+          document.getElementById("statPriceRange").innerText = `¥${currentPrice.toFixed(2)}`;
+          document.getElementById("chartTotalSales").innerText = "1 笔上架";
+          document.getElementById("chartDateRange").innerText = `截止 ${new Date().toLocaleDateString()}`;
+          return;
+        }
+
+        const prices = history.map(h => h.price);
+        const maxPrice = Math.max(...prices, currentPrice);
+        const minPrice = Math.min(...prices, currentPrice);
+        const sum = prices.reduce((a, b) => a + b, 0);
+        const avgPrice = sum / prices.length;
+
+        document.getElementById("statAvgPrice").innerText = `¥${avgPrice.toFixed(2)}`;
+        document.getElementById("statPriceRange").innerText = `¥${minPrice.toFixed(2)} - ¥${maxPrice.toFixed(2)}`;
+        document.getElementById("chartTotalSales").innerText = `${history.length} 笔成交`;
+
+        const firstDate = new Date(history[0].updatedAt).toLocaleDateString();
+        const lastDate = new Date(history[history.length - 1].updatedAt).toLocaleDateString();
+        document.getElementById("chartDateRange").innerText = `${firstDate} - ${lastDate}`;
+
+        const yMax = maxPrice * 1.25;
+        const yMin = Math.max(0, minPrice * 0.75);
+        document.getElementById("yLabelMax").innerText = `¥${yMax.toFixed(0)}`;
+        document.getElementById("yLabelMidHigh").innerText = `¥${(yMax - (yMax - yMin) * 0.33).toFixed(0)}`;
+        document.getElementById("yLabelMidLow").innerText = `¥${(yMin + (yMax - yMin) * 0.33).toFixed(0)}`;
+        document.getElementById("yLabelMin").innerText = `¥${yMin.toFixed(0)}`;
+
+        const xStart = 80;
+        const xEnd = 720;
+        const yStart = 50;
+        const yEnd = 260;
+
+        const getX = (index) => {
+          if (history.length <= 1) return (xStart + xEnd) / 2;
+          return xStart + (index / (history.length - 1)) * (xEnd - xStart);
+        };
+
+        const getY = (price) => {
+          const ratio = (price - yMin) / (yMax - yMin || 1);
+          return yEnd - ratio * (yEnd - yStart);
+        };
+
+        const avgY = getY(avgPrice);
+
+        const points = history.map((h, i) => ({
+          x: getX(i),
+          y: getY(h.price),
+          dateStr: new Date(h.updatedAt).toLocaleDateString()
+        }));
+
+        let linePath = "";
+        let fillPath = "";
+
+        if (points.length > 0) {
+          linePath = `M ${points[0].x} ${points[0].y}`;
+          for (let i = 0; i < points.length - 1; i++) {
+            const p0 = points[i];
+            const p1 = points[i + 1];
+            const cpX1 = p0.x + (p1.x - p0.x) / 2;
+            const cpY1 = p0.y;
+            const cpX2 = p0.x + (p1.x - p0.x) / 2;
+            const cpY2 = p1.y;
+            linePath += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${p1.x} ${p1.y}`;
+          }
+          fillPath = `${linePath} L ${points[points.length - 1].x} ${yEnd} L ${points[0].x} ${yEnd} Z`;
+        }
+
+        let svgHtml = "";
+        if (fillPath) {
+          svgHtml += `<path d="${fillPath}" fill="url(#areaGradient)" />`;
+          svgHtml += `<path d="${linePath}" fill="none" stroke="#3b82f6" stroke-width="3" />`;
+        }
+
+        svgHtml += `<line x1="${xStart}" y1="${avgY}" x2="${xEnd}" y2="${avgY}" stroke="#9ca3af" stroke-dasharray="4 4" stroke-width="1.5" />`;
+        svgHtml += `<text x="${xEnd - 10}" y="${avgY - 6}" fill="var(--text-muted)" font-size="11" text-anchor="end">平均价格 ¥${avgPrice.toFixed(2)}</text>`;
+
+        points.forEach((p, idx) => {
+          svgHtml += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#60a5fa" stroke="#111827" stroke-width="2" />`;
+          if (points.length <= 6 || idx === 0 || idx === points.length - 1 || idx === Math.floor(points.length / 2)) {
+            svgHtml += `<text x="${p.x}" y="${yEnd + 20}" fill="var(--text-muted)" font-size="10" text-anchor="middle">${p.dateStr}</text>`;
+          }
+        });
+
+        g.innerHTML = svgHtml;
+
+      } catch (err) {
+        g.innerHTML = `<text x="400" y="150" fill="#f87171" font-size="14" text-anchor="middle">加载历史走势失败: ${err}</text>`;
+      }
+    }
+
+    function closeHistoryModal(e) {
+      document.getElementById("historyModal").classList.remove("active");
+    }
+
+    async function triggerRefresh() {
+      const btn = document.getElementById("refreshBtn");
+      btn.disabled = true;
+      const originalText = btn.querySelector("span").innerText;
+      btn.querySelector("span").innerText = "刷新测速中...";
+      
+      try {
+        const res = await fetch("/api/refresh", { method: "POST" });
+        if (res.ok) {
+          showToast("抓取与延迟测试完成！");
+          await fetchVpsList();
+        }
+      } catch (e) {
+        showToast("手动刷新失败", true);
+      } finally {
+        btn.disabled = false;
+        btn.querySelector("span").innerText = originalText;
+      }
+    }
+
+    function showToast(msg, isError = false) {
+      const t = document.getElementById("toast");
+      t.innerText = msg;
+      t.style.background = isError ? "rgba(239, 68, 68, 0.9)" : "rgba(16, 185, 129, 0.9)";
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 3000);
+    }
+
+    fetchVpsList();
+  </script>
+</body>
+</html>
