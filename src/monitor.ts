@@ -58,77 +58,75 @@ export async function checkStore(env: Env, settings: Settings): Promise<void> {
             const minPriceData = plan.price_datas?.reduce((min, curr) => curr.price < min.price ? curr : min, plan.price_datas[0]);
             if (!minPriceData) continue;
             const price = minPriceData.price;
+            const id = `store_${plan.id}`;
+            const uniqueKey = `akile_store_vps_${plan.id}_price_${price}`;
+            const cached = await env.KV.get(uniqueKey);
 
-            if (price <= settings.maxPrice) {
-              const id = `store_${plan.id}`;
-              const uniqueKey = `akile_store_vps_${plan.id}_price_${price}`;
-              const cached = await env.KV.get(uniqueKey);
+            let latency: number | undefined = undefined;
+            if (cached) {
+              try {
+                const existing = await env.DB.prepare("SELECT latency FROM vps_records WHERE id = ?").bind(id).first<{ latency: number | null }>();
+                if (existing && existing.latency !== null) {
+                  latency = existing.latency;
+                }
+              } catch (e) {}
+            } else {
+              const lgUrl = LATENCY_TARGETS[area.area_name] || LATENCY_TARGETS[node.group_name];
+              latency = lgUrl ? await testLatency(lgUrl) : undefined;
+            }
 
-              let latency: number | undefined = undefined;
-              if (cached) {
-                try {
-                  const existing = await env.DB.prepare("SELECT latency FROM vps_records WHERE id = ?").bind(id).first<{ latency: number | null }>();
-                  if (existing && existing.latency !== null) {
-                    latency = existing.latency;
-                  }
-                } catch (e) {}
-              } else {
-                const lgUrl = LATENCY_TARGETS[area.area_name] || LATENCY_TARGETS[node.group_name];
-                latency = lgUrl ? await testLatency(lgUrl) : undefined;
-              }
+            const record: VpsRecord = {
+              id,
+              type: "store",
+              area: area.area_name,
+              name: plan.plan_name,
+              price,
+              stock: plan.stock,
+              specs: `${plan.cpu}核 / ${plan.memory}M / ${plan.disk}G | ${plan.flow}G流量 | ${plan.bandwidth}M带宽`,
+              link: "https://akile.io/store",
+              latency,
+              updatedAt: new Date().toISOString(),
 
-              const record: VpsRecord = {
-                id,
+              // 拆分细节属性
+              cpu: plan.cpu,
+              memory: plan.memory,
+              disk: plan.disk,
+              bandwidth: plan.bandwidth,
+              flow: plan.flow,
+              nodeName: node.group_name,
+              ipv4Num: 1,
+              ipv6Num: 1,
+              ipStatus: "[IP正常]"
+            };
+
+            // 写入 D1 数据库 (不管价格多少，一律写入)
+            try {
+              await env.DB.prepare(`
+                INSERT OR REPLACE INTO vps_records (
+                  id, type, area, name, price, stock, specs, link, latency, updated_at,
+                  cpu, memory, disk, bandwidth, flow, node_name, ipv4_num, ipv6_num, ip_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).bind(
+                record.id, record.type, record.area, record.name, record.price, record.stock, record.specs, record.link, record.latency || null, record.updatedAt,
+                record.cpu || null, record.memory || null, record.disk || null, record.bandwidth || null, record.flow || null, record.nodeName || null,
+                record.ipv4Num || null, record.ipv6Num || null, record.ipStatus || null
+              ).run();
+            } catch (err) {
+              console.error(`Failed to write store record to D1: ${err}`);
+            }
+
+            // 只有符合最大价格阈值且未推送过才触发通知
+            if (price <= settings.maxPrice && !cached) {
+              await notify(env, settings, {
                 type: "store",
-                area: area.area_name,
-                name: plan.plan_name,
+                title: `[商店上新] ${area.area_name} - ${node.group_name}`,
+                planName: plan.plan_name,
                 price,
                 stock: plan.stock,
-                specs: `${plan.cpu}核 / ${plan.memory}M / ${plan.disk}G | ${plan.flow}G流量 | ${plan.bandwidth}M带宽`,
-                link: "https://akile.io/store",
-                latency,
-                updatedAt: new Date().toISOString(),
-
-                // 拆分细节属性
-                cpu: plan.cpu,
-                memory: plan.memory,
-                disk: plan.disk,
-                bandwidth: plan.bandwidth,
-                flow: plan.flow,
-                nodeName: node.group_name,
-                ipv4Num: 1, // 官方新机默认主配置一般带1个IPv4
-                ipv6Num: 1,
-                ipStatus: "[IP正常]"
-              };
-
-              // 写入 D1 数据库
-              try {
-                await env.DB.prepare(`
-                  INSERT OR REPLACE INTO vps_records (
-                    id, type, area, name, price, stock, specs, link, latency, updated_at,
-                    cpu, memory, disk, bandwidth, flow, node_name, ipv4_num, ipv6_num, ip_status
-                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `).bind(
-                  record.id, record.type, record.area, record.name, record.price, record.stock, record.specs, record.link, record.latency || null, record.updatedAt,
-                  record.cpu || null, record.memory || null, record.disk || null, record.bandwidth || null, record.flow || null, record.nodeName || null,
-                  record.ipv4Num || null, record.ipv6Num || null, record.ipStatus || null
-                ).run();
-              } catch (err) {
-                console.error(`Failed to write store record to D1: ${err}`);
-              }
-
-              if (!cached) {
-                await notify(env, settings, {
-                  type: "store",
-                  title: `[商店上新] ${area.area_name} - ${node.group_name}`,
-                  planName: plan.plan_name,
-                  price,
-                  stock: plan.stock,
-                  specs: record.specs + (latency ? ` | 测速: ${latency}ms` : ""),
-                  link: record.link
-                });
-                await env.KV.put(uniqueKey, "true", { expirationTtl: 172800 });
-              }
+                specs: record.specs + (latency ? ` | 测速: ${latency}ms` : ""),
+                link: record.link
+              });
+              await env.KV.put(uniqueKey, "true", { expirationTtl: 172800 });
             }
           }
         }
@@ -187,85 +185,84 @@ export async function checkMarket(env: Env, settings: Settings): Promise<void> {
 
     for (const item of json.list) {
       const itemPrice = parseFloat(item.price);
-      if (itemPrice <= settings.maxPrice) {
-        const id = `market_${item.id}`;
-        const uniqueKey = `akile_market_vps_${item.id}_price_${item.price}`;
-        const cached = await env.KV.get(uniqueKey);
+      const id = `market_${item.id}`;
+      const uniqueKey = `akile_market_vps_${item.id}_price_${item.price}`;
+      const cached = await env.KV.get(uniqueKey);
 
-        let latency: number | undefined = undefined;
-        if (cached) {
-          try {
-            const existing = await env.DB.prepare("SELECT latency FROM vps_records WHERE id = ?").bind(id).first<{ latency: number | null }>();
-            if (existing && existing.latency !== null) {
-              latency = existing.latency;
-            }
-          } catch (e) {}
-        } else {
-          const matches = Object.keys(LATENCY_TARGETS).filter(k => item.name.includes(k) || item.area_name.includes(k));
-          const lgUrl = matches.length > 0 ? LATENCY_TARGETS[matches[0]] : undefined;
-          latency = lgUrl ? await testLatency(lgUrl) : undefined;
-        }
+      let latency: number | undefined = undefined;
+      if (cached) {
+        try {
+          const existing = await env.DB.prepare("SELECT latency FROM vps_records WHERE id = ?").bind(id).first<{ latency: number | null }>();
+          if (existing && existing.latency !== null) {
+            latency = existing.latency;
+          }
+        } catch (e) {}
+      } else {
+        const matches = Object.keys(LATENCY_TARGETS).filter(k => item.name.includes(k) || item.area_name.includes(k));
+        const lgUrl = matches.length > 0 ? LATENCY_TARGETS[matches[0]] : undefined;
+        latency = lgUrl ? await testLatency(lgUrl) : undefined;
+      }
 
-        const record: VpsRecord = {
-          id,
+      const record: VpsRecord = {
+        id,
+        type: "market",
+        area: item.area_name || (Object.keys(LATENCY_TARGETS).filter(k => item.name.includes(k) || item.area_name.includes(k))[0] || "交易市场"),
+        name: item.name,
+        price: itemPrice,
+        stock: 1,
+        specs: `${item.cpu}核 / ${item.memory}M / ${item.disk}G | ${item.flow}G流量 | ${item.bandwidth}M带宽`,
+        link: "https://akile.ai/",
+        latency,
+        updatedAt: new Date().toISOString(),
+
+        // 细化字段
+        cpu: item.cpu,
+        memory: item.memory,
+        disk: item.disk,
+        bandwidth: item.bandwidth,
+        flow: item.flow,
+        flowUsed: item.flow_used,
+        dueTime: item.due_time,
+        nodeName: item.node_name,
+        serverPrice: item.server_price,
+        serverCycle: item.server_cycle,
+        ipv4Num: item.ipv4_num,
+        ipv6Num: item.ipv6_num,
+        ipStatus: item.detail,
+        ipCheckDetail: item.ip_check_detail,
+        resetPrice: item.reset_price
+      };
+
+      // 写入 D1 数据库 (不管价格多少，一律写入)
+      try {
+        await env.DB.prepare(`
+          INSERT OR REPLACE INTO vps_records (
+            id, type, area, name, price, stock, specs, link, latency, updated_at,
+            cpu, memory, disk, bandwidth, flow, flow_used, due_time, node_name,
+            server_price, server_cycle, ipv4_num, ipv6_num, ip_status, ip_check_detail, reset_price
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          record.id, record.type, record.area, record.name, record.price, record.stock, record.specs, record.link, record.latency || null, record.updatedAt,
+          record.cpu || null, record.memory || null, record.disk || null, record.bandwidth || null, record.flow || null, record.flowUsed || null,
+          record.dueTime || null, record.nodeName || null, record.serverPrice || null, record.serverCycle || null, record.ipv4Num || null,
+          record.ipv6Num || null, record.ipStatus || null, record.ipCheckDetail || null, record.resetPrice || null
+        ).run();
+      } catch (err) {
+        console.error(`Failed to write market record to D1: ${err}`);
+      }
+
+      // 只有符合最大价格阈值且未推送过才触发通知
+      if (itemPrice <= settings.maxPrice && !cached) {
+        await notify(env, settings, {
           type: "market",
-          area: item.area_name || (Object.keys(LATENCY_TARGETS).filter(k => item.name.includes(k) || item.area_name.includes(k))[0] || "交易市场"),
-          name: item.name,
+          title: `[市场低价] 二手机上架`,
+          planName: item.name,
           price: itemPrice,
           stock: 1,
-          specs: `${item.cpu}核 / ${item.memory}M / ${item.disk}G | ${item.flow}G流量 | ${item.bandwidth}M带宽`,
-          link: "https://akile.ai/",
-          latency,
-          updatedAt: new Date().toISOString(),
-
-          // 细化字段
-          cpu: item.cpu,
-          memory: item.memory,
-          disk: item.disk,
-          bandwidth: item.bandwidth,
-          flow: item.flow,
-          flowUsed: item.flow_used,
-          dueTime: item.due_time,
-          nodeName: item.node_name,
-          serverPrice: item.server_price,
-          serverCycle: item.server_cycle,
-          ipv4Num: item.ipv4_num,
-          ipv6Num: item.ipv6_num,
-          ipStatus: item.detail,
-          ipCheckDetail: item.ip_check_detail,
-          resetPrice: item.reset_price
-        };
-
-        // 写入 D1 数据库
-        try {
-          await env.DB.prepare(`
-            INSERT OR REPLACE INTO vps_records (
-              id, type, area, name, price, stock, specs, link, latency, updated_at,
-              cpu, memory, disk, bandwidth, flow, flow_used, due_time, node_name,
-              server_price, server_cycle, ipv4_num, ipv6_num, ip_status, ip_check_detail, reset_price
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).bind(
-            record.id, record.type, record.area, record.name, record.price, record.stock, record.specs, record.link, record.latency || null, record.updatedAt,
-            record.cpu || null, record.memory || null, record.disk || null, record.bandwidth || null, record.flow || null, record.flowUsed || null,
-            record.dueTime || null, record.nodeName || null, record.serverPrice || null, record.serverCycle || null, record.ipv4Num || null,
-            record.ipv6Num || null, record.ipStatus || null, record.ipCheckDetail || null, record.resetPrice || null
-          ).run();
-        } catch (err) {
-          console.error(`Failed to write market record to D1: ${err}`);
-        }
-
-        if (!cached) {
-          await notify(env, settings, {
-            type: "market",
-            title: `[市场低价] 二手机上架`,
-            planName: item.name,
-            price: itemPrice,
-            stock: 1,
-            specs: record.specs + (latency ? ` | 测速: ${latency}ms` : ""),
-            link: record.link
-          });
-          await env.KV.put(uniqueKey, "true", { expirationTtl: 172800 });
-        }
+          specs: record.specs + (latency ? ` | 测速: ${latency}ms` : ""),
+          link: record.link
+        });
+        await env.KV.put(uniqueKey, "true", { expirationTtl: 172800 });
       }
     }
   } catch (e) {
@@ -278,7 +275,7 @@ export async function notify(
   settings: Settings,
   data: { type: string; title: string; planName: string; price: number; stock: number; specs: string; link: string }
 ): Promise<void> {
-  // 1. TG 通道推送
+  // 1. TG 通道推送 (Markdown 格式)
   if (settings.tgBotToken && settings.tgChatId) {
     const message = `🔔 *${data.title}*\n\n` +
       `📦 *商品:* ${data.planName}\n` +
@@ -303,22 +300,22 @@ export async function notify(
     }
   }
 
-  // 2. 企业微信 Webhook 通道推送
+  // 2. 企业微信 Webhook 通道推送 (根据用户要求，改成 text 文本格式)
   if (settings.wechatWebhook) {
-    const markdownContent = `🔔 **${data.title}**\n\n` +
-      `>📦 **商品:** <font color="comment">${data.planName}</font>\n` +
-      `>💰 **价格:** <font color="warning">${data.price} JPY/CNY</font> (库存: ${data.stock})\n` +
-      `>💻 **配置:** ${data.specs}\n\n` +
-      `[立即购买](${data.link})`;
+    const textContent = `🔔 ${data.title}\n\n` +
+      `📦 商品: ${data.planName}\n` +
+      `💰 价格: ${data.price} JPY/CNY (库存: ${data.stock})\n` +
+      `💻 配置: ${data.specs}\n\n` +
+      `🔗 链接: ${data.link}`;
 
     try {
       await fetch(settings.wechatWebhook, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          msgtype: "markdown",
-          markdown: {
-            content: markdownContent
+          msgtype: "text",
+          text: {
+            content: textContent
           }
         })
       });
