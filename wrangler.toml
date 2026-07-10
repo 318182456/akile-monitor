@@ -1,0 +1,19 @@
+name = "akile-monitor"
+main = "src/index.ts"
+compatibility_date = "2026-07-10"
+
+[observability]
+enabled = true
+
+[[kv_namespaces]]
+binding = "AKILE_KV"
+
+[triggers]
+crons = ["*/1 * * * *"] # Every minute
+
+[vars]
+MAX_PRICE = "20"
+MARKET_MONITOR_ENABLED = "true"
+# Fill these in your .dev.vars (local dev) or wrangler secrets (production)
+# TG_BOT_TOKEN = "your_bot_token"
+# TG_CHAT_ID = "your_chat_id"
