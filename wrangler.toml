@@ -19,7 +19,7 @@ head_sampling_rate = 1
 
 
 [[kv_namespaces]]
-binding = "AKILE_KV"
+binding = "KV"
 
 [triggers]
 crons = ["*/1 * * * *"] # Every minute
