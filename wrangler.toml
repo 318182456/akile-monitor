@@ -28,7 +28,7 @@ binding = "KV"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "akile-db"
+database_name = "akile-monitor-db"
 
 [triggers]
 crons = ["*/1 * * * *"] # Every minute

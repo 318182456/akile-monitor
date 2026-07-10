@@ -8,10 +8,13 @@ import SETTINGS_HTML from "./settings.html";
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(this.runChecks(env));
+    ctx.waitUntil(this.initializeDb(env).then(() => this.runChecks(env)));
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // 自动初始化/检查表是否存在
+    await this.initializeDb(env);
+
     const url = new URL(request.url);
     const method = request.method;
 
@@ -173,5 +176,45 @@ export default {
   async runChecks(env: Env): Promise<void> {
     const settings = await this.getSettings(env);
     await runChecks(env, settings);
+  },
+
+  async initializeDb(env: Env): Promise<void> {
+    try {
+      await env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS vps_records (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          area TEXT NOT NULL,
+          name TEXT NOT NULL,
+          price REAL NOT NULL,
+          stock INTEGER NOT NULL,
+          specs TEXT NOT NULL,
+          link TEXT NOT NULL,
+          latency INTEGER,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          cpu INTEGER,
+          memory INTEGER,
+          disk INTEGER,
+          bandwidth INTEGER,
+          flow INTEGER,
+          flow_used INTEGER,
+          due_time INTEGER,
+          node_name TEXT,
+          server_price REAL,
+          server_cycle INTEGER,
+          ipv4_num INTEGER,
+          ipv6_num INTEGER,
+          ip_status TEXT,
+          ip_check_detail TEXT,
+          reset_price REAL
+        )
+      `).run();
+
+      // 创建索引提高性能
+      await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_vps_price ON vps_records(price)`).run();
+      await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_vps_updated ON vps_records(updated_at)`).run();
+    } catch (e) {
+      console.error(`Failed to initialize D1 database schema: ${e}`);
+    }
   }
 };
