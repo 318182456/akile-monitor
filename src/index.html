@@ -675,6 +675,80 @@
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15);
     }
+    
+    .line-vps-collapse {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+      opacity: 0;
+      width: 100%;
+    }
+    
+    .line-vps-collapse.active {
+      max-height: 1000px;
+      opacity: 1;
+      margin-top: 0.5rem;
+    }
+    
+    .line-vps-list {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding-right: 0.25rem;
+    }
+    
+    .line-vps-item {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 0.6rem 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      transition: background 0.2s;
+    }
+    
+    .line-vps-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .line-vps-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    
+    .line-vps-name-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .line-vps-name {
+      font-weight: 600;
+      color: white;
+    }
+    
+    .line-vps-specs {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    
+    .line-vps-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .line-vps-price {
+      font-weight: 800;
+      color: #34d399;
+    }
+    
     .line-card-header {
       display: flex;
       justify-content: space-between;
@@ -972,14 +1046,26 @@
       const paginationWrapper = document.getElementById("paginationWrapper");
       paginationWrapper.innerHTML = ""; // 线路评测页不需分页
       
-      const lines = Object.values(LINE_META);
-      
-      container.innerHTML = lines.map(line => {
+      container.innerHTML = Object.entries(LINE_META).map(([key, line]) => {
+        // Find matching VPSs from globalVpsList
+        const matchedVpsList = globalVpsList.filter(item => {
+          if (!item.nodeName) return false;
+          const name = item.nodeName.trim().toUpperCase();
+          const k = key.trim().toUpperCase();
+          return name === k || name.includes(k) || k.includes(name);
+        });
+        
+        const cleanKey = key.replace(/\s+/g, '_');
+        
         return `
           <div class="line-info-card">
-            <div class="line-card-header">
+            <div class="line-card-header" style="justify-content: flex-start; gap: 0.5rem; flex-wrap: wrap;">
               <span class="line-title">${line.emoji} ${line.name}</span>
-              <span class="line-badge ${line.stabilityClass}">晚高峰稳定性: ${line.stability}</span>
+              <span class="line-badge ${line.stabilityClass}">稳定性: ${line.stability}</span>
+              <span class="line-badge ip-ok" style="cursor: pointer; background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.3); color: #34d399; margin-left: auto; display: inline-flex; align-items: center; gap: 0.25rem;" onclick="toggleLineCardVps(event, '${cleanKey}')" title="点击展开/收起VPS详情">
+                VPS数: ${matchedVpsList.length}
+                <svg id="line-vps-arrow-${cleanKey}" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.3s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </span>
             </div>
             
             <div style="display: flex; flex-wrap: wrap; gap: 0.35rem;">
@@ -1019,9 +1105,55 @@
                 ${line.nightStatus}
               </div>
             </div>
+            
+            <div class="line-vps-collapse" id="line-vps-collapse-${cleanKey}">
+              <div style="border-top: 1px solid var(--border); margin-top: 0.5rem; padding-top: 0.5rem;">
+                <div class="line-section-title" style="color: #34d399;">💻 在线 VPS 详情</div>
+                <div class="line-vps-list">
+                  ${matchedVpsList.length === 0 ? '<div class="line-collapse-text" style="color: var(--text-muted);">暂无在线 VPS</div>' : matchedVpsList.map(vps => `
+                    <div class="line-vps-item">
+                      <div class="line-vps-info">
+                        <div class="line-vps-name-row">
+                          <span class="line-vps-name">${vps.name}</span>
+                          <span class="ip-badge ${vps.ipStatus && vps.ipStatus.includes("正常") ? "ip-ok" : "ip-blocked"}" style="padding: 0.05rem 0.25rem; font-size: 0.65rem;">
+                            ${vps.ipStatus || "[IP正常]"}
+                          </span>
+                        </div>
+                        <span class="line-vps-specs">${vps.specs}</span>
+                      </div>
+                      <div class="line-vps-right" style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem;">
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">
+                          续费: <span style="color: #fbbf24; font-weight: 600;">${formatToCNY(vps.serverPrice || vps.price, vps.area)}</span>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">
+                          售价: <span class="line-vps-price" style="font-size: 0.85rem; font-weight: 800; color: #34d399;">${formatToCNY(vps.price, vps.area)}</span>
+                        </div>
+                        <a href="https://akile.ai/console/pushshop" target="_blank" class="btn-buy" style="padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px; margin-top: 0.15rem;">直达链接</a>
+                      </div>
+                    </div>
+                  `).join("")}
+                </div>
+              </div>
+            </div>
           </div>
         `;
       }).join("");
+    }
+
+    function toggleLineCardVps(event, key) {
+      event.preventDefault();
+      event.stopPropagation();
+      const panel = document.getElementById(`line-vps-collapse-${key}`);
+      const arrow = document.getElementById(`line-vps-arrow-${key}`);
+      if (!panel) return;
+      const isActive = panel.classList.contains("active");
+      if (isActive) {
+        panel.classList.remove("active");
+        if (arrow) arrow.style.transform = "rotate(0deg)";
+      } else {
+        panel.classList.add("active");
+        if (arrow) arrow.style.transform = "rotate(180deg)";
+      }
     }
 
     function getNodeInfoBadge(nodeName, itemId) {

@@ -1,5 +1,6 @@
 import { Env, Settings, VpsRecord } from "./types";
-import { runChecks, LINE_META } from "./monitor";
+import { runChecks } from "./monitor";
+
 
 // @ts-ignore - wrangler.toml matches *.html files via text loader
 import DASHBOARD_HTML from "./index.html";
@@ -19,6 +20,7 @@ import type {
   AuthenticationResponseJSON,
   AuthenticatorTransportFuture,
 } from '@simplewebauthn/types';
+import { LINE_META } from "./lines";
 
 interface StoredPasskey {
   id: string;         // credential ID（base64url）
