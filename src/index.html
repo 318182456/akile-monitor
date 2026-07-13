@@ -1124,6 +1124,19 @@
       }
     }
 
+    function formatDateTime(dateStr) {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const seconds = String(d.getSeconds()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
     // 统一汇率换算为人民币 (CNY)
     function formatToCNY(price, areaName) {
       if (!price) return "¥0.00";
@@ -1236,7 +1249,7 @@
                 </div>
               </div>
               <div style="display: flex; align-items: center;">
-                <span class="vps-update-time">${new Date(item.updatedAt).toLocaleTimeString()}</span>
+                <span class="vps-update-time">${formatDateTime(item.updatedAt)}</span>
                 <button class="btn-trend" onclick="openHistoryChart('${item.name}', '${item.nodeName || ''}', ${item.serverPrice || item.price}, ${item.price}, '${item.area}')" title="查看历史价格走势">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
                 </button>

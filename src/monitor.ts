@@ -30,6 +30,22 @@ export async function testLatency(url: string): Promise<number> {
   }
 }
 
+export function parseTestTime(detail: string | undefined | null, fallbackTime?: string): string {
+  const fallback = fallbackTime || new Date().toISOString();
+  if (!detail) return fallback;
+  const match = detail.match(/测试时间:\s*(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
+  if (match) {
+    // 假设 API 返回的是北京时间 (UTC+8)
+    const localTimeStr = match[1].replace(" ", "T") + "+08:00";
+    try {
+      return new Date(localTimeStr).toISOString();
+    } catch (e) {
+      // fallback
+    }
+  }
+  return fallback;
+}
+
 export async function runChecks(env: Env, settings: Settings): Promise<void> {
   await Promise.all([
     checkStore(env, settings),
@@ -102,10 +118,30 @@ export async function checkStore(env: Env, settings: Settings): Promise<void> {
             // 写入 D1 数据库 (不管价格多少，一律写入)
             try {
               await env.DB.prepare(`
-                INSERT OR REPLACE INTO vps_records (
+                INSERT INTO vps_records (
                   id, type, area, name, price, stock, specs, link, latency, updated_at,
                   cpu, memory, disk, bandwidth, flow, node_name, ipv4_num, ipv6_num, ip_status
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  price = excluded.price,
+                  stock = excluded.stock,
+                  specs = excluded.specs,
+                  link = excluded.link,
+                  latency = COALESCE(excluded.latency, vps_records.latency),
+                  updated_at = CASE 
+                    WHEN vps_records.stock <= 0 AND excluded.stock > 0 THEN excluded.updated_at
+                    WHEN vps_records.price != excluded.price THEN excluded.updated_at
+                    ELSE vps_records.updated_at
+                  END,
+                  cpu = excluded.cpu,
+                  memory = excluded.memory,
+                  disk = excluded.disk,
+                  bandwidth = excluded.bandwidth,
+                  flow = excluded.flow,
+                  node_name = excluded.node_name,
+                  ipv4_num = excluded.ipv4_num,
+                  ipv6_num = excluded.ipv6_num,
+                  ip_status = excluded.ip_status
               `).bind(
                 record.id, record.type, record.area, record.name, record.price, record.stock, record.specs, record.link, record.latency || null, record.updatedAt,
                 record.cpu || null, record.memory || null, record.disk || null, record.bandwidth || null, record.flow || null, record.nodeName || null,
@@ -214,11 +250,13 @@ export async function checkMarket(env: Env, settings: Settings): Promise<void> {
       const cached = await env.KV.get(uniqueKey);
 
       let latency: number | undefined = undefined;
+      let existingUpdatedAt: string | undefined = undefined;
       if (cached) {
         try {
-          const existing = await env.DB.prepare("SELECT latency FROM vps_records WHERE id = ?").bind(id).first<{ latency: number | null }>();
-          if (existing && existing.latency !== null) {
-            latency = existing.latency;
+          const existing = await env.DB.prepare("SELECT latency, updated_at as updatedAt FROM vps_records WHERE id = ?").bind(id).first<{ latency: number | null, updatedAt: string | null }>();
+          if (existing) {
+            if (existing.latency !== null) latency = existing.latency;
+            if (existing.updatedAt) existingUpdatedAt = existing.updatedAt;
           }
         } catch (e) {}
       } else {
@@ -237,7 +275,7 @@ export async function checkMarket(env: Env, settings: Settings): Promise<void> {
         specs: `${item.cpu}核 / ${item.memory}M / ${item.disk}G | ${item.flow}G流量 | ${item.bandwidth}M带宽`,
         link: "https://akile.ai/",
         latency,
-        updatedAt: new Date().toISOString(),
+        updatedAt: parseTestTime(item.ip_check_detail, existingUpdatedAt),
 
         // 细化字段
         cpu: item.cpu,
@@ -260,11 +298,33 @@ export async function checkMarket(env: Env, settings: Settings): Promise<void> {
       // 写入 D1 数据库 (不管价格多少，一律写入)
       try {
         await env.DB.prepare(`
-          INSERT OR REPLACE INTO vps_records (
+          INSERT INTO vps_records (
             id, type, area, name, price, stock, specs, link, latency, updated_at,
             cpu, memory, disk, bandwidth, flow, flow_used, due_time, node_name,
             server_price, server_cycle, ipv4_num, ipv6_num, ip_status, ip_check_detail, reset_price
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            price = excluded.price,
+            stock = excluded.stock,
+            specs = excluded.specs,
+            link = excluded.link,
+            latency = COALESCE(excluded.latency, vps_records.latency),
+            updated_at = excluded.updated_at,
+            cpu = excluded.cpu,
+            memory = excluded.memory,
+            disk = excluded.disk,
+            bandwidth = excluded.bandwidth,
+            flow = excluded.flow,
+            flow_used = excluded.flow_used,
+            due_time = excluded.due_time,
+            node_name = excluded.node_name,
+            server_price = excluded.server_price,
+            server_cycle = excluded.server_cycle,
+            ipv4_num = excluded.ipv4_num,
+            ipv6_num = excluded.ipv6_num,
+            ip_status = excluded.ip_status,
+            ip_check_detail = excluded.ip_check_detail,
+            reset_price = excluded.reset_price
         `).bind(
           record.id, record.type, record.area, record.name, record.price, record.stock, record.specs, record.link, record.latency || null, record.updatedAt,
           record.cpu || null, record.memory || null, record.disk || null, record.bandwidth || null, record.flow || null, record.flowUsed || null,
@@ -619,6 +679,120 @@ export const LINE_META: Record<string, LineMeta> = {
     mobile: "★★★★★",
     label: "三网高端直连",
     hint: "CN2 GIA/9929/CMI，晚上极其稳定不掉线",
+    color: "#34d399"
+  },
+  "LAX静态住宅": {
+    name: "LAX静态住宅",
+    area: "美国洛杉矶 (Los Angeles)",
+    emoji: "🇺🇸",
+    tags: ["住宅IP", "流媒体解锁", "外贸跨境"],
+    stability: "极佳",
+    stabilityClass: "status-excellent",
+    desc: "美西洛杉矶机房静态住宅IP线路，专门针对流媒体全解锁及外贸跨境电商等强风控场景。",
+    pros: "纯正静态住宅IP（ISP类型），不易被各大流媒体及风控平台（如TikTok, Netflix, ChatGPT）标记封禁，网络稳定性强。",
+    cons: "价格比一般机房BGP套餐高得多，带宽资源通常较为有限，不适合大流量BT下载。",
+    nightStatus: "晚高峰稳定性极高，三网延迟相对平稳，几乎没有丢包，正常情况下绝不掉线。",
+    nightClass: "",
+    telecom: "★★★★☆",
+    unicom: "★★★★★",
+    mobile: "★★★★☆",
+    label: "洛杉矶静态住宅IP",
+    hint: "双ISP静态住宅IP，跨境与流媒体解锁神机，晚高峰极稳",
+    color: "#ec4899"
+  },
+  "DEBGP": {
+    name: "DEBGP",
+    area: "德国 (Germany)",
+    emoji: "🇩🇪",
+    tags: ["德国BGP", "欧洲落地"],
+    stability: "一般",
+    stabilityClass: "status-warning",
+    desc: "德国法兰克福BGP大带宽线路，未针对国内回程进行特流优化，物理距离较远。",
+    pros: "价格便宜，国际及欧洲本地互联极佳，提供欧洲大带宽与大流量落地。",
+    cons: "直连中国延迟较高（通常在180-260ms），晚高峰直连丢包多。",
+    nightStatus: "晚高峰容易随欧洲至亚洲骨干光缆拥堵而丢包，直连表现较差，推荐使用国内中转拉跨落地。",
+    nightClass: "warn",
+    telecom: "★☆☆☆☆",
+    unicom: "★★☆☆☆",
+    mobile: "★★☆☆☆",
+    label: "德国国际BGP",
+    hint: "欧洲落地，晚高峰直连丢包较高，建议中转",
+    color: "#fbbf24"
+  },
+  "LAX LITE": {
+    name: "LAX Lite",
+    area: "美国洛杉矶 (Los Angeles)",
+    emoji: "🇺🇸",
+    tags: ["廉价美西", "大带宽落地"],
+    stability: "一般",
+    stabilityClass: "status-warning",
+    desc: "洛杉矶Lite轻量系列，纯美西BGP网络，不提供国内回程直连优化。",
+    pros: "价格极具性价比，大带宽，适合作为美区解锁/流媒体落地，或配合国内中转使用。",
+    cons: "直连延迟高，且在晚高峰由于骨干网拥堵，丢包率会明显飙升。",
+    nightStatus: "晚高峰期间直连容易受到严重影响，丢包率高，推荐通过中转拉跨使用，直连使用体验不佳。",
+    nightClass: "warn",
+    telecom: "★☆☆☆☆",
+    unicom: "★★☆☆☆",
+    mobile: "★★☆☆☆",
+    label: "美西国际BGP",
+    hint: "大带宽落地，晚高峰直连丢包高，建议中转",
+    color: "#fbbf24"
+  },
+  "MOLITE": {
+    name: "MOLite",
+    area: "中国澳门 (Macau)",
+    emoji: "🇲🇴",
+    tags: ["澳门落地", "流媒体解锁"],
+    stability: "一般",
+    stabilityClass: "status-warning",
+    desc: "澳门Lite轻量线路，使用澳门本土BGP网络，对国内无特殊直连优化。",
+    pros: "提供澳门本地原生IP，支持解锁澳门本地流媒体及各种特有网络服务。",
+    cons: "直连路由不稳定，经常绕行香港，且晚高峰期间延迟与丢包较多。",
+    nightStatus: "晚高峰直连会有明显抖动与丢包，整体运行尚可，建议配合中转使用以获得低延迟体验。",
+    nightClass: "warn",
+    telecom: "★☆☆☆☆",
+    unicom: "★★☆☆☆",
+    mobile: "★★★☆☆",
+    label: "澳门国际BGP",
+    hint: "澳门原生落地，直连延迟较高，建议中转",
+    color: "#fbbf24"
+  },
+  "DEBGP LITE": {
+    name: "DEBGP Lite",
+    area: "德国 (Germany)",
+    emoji: "🇩🇪",
+    tags: ["极廉欧洲", "大带宽纯落地"],
+    stability: "较差",
+    stabilityClass: "status-poor",
+    desc: "德国轻量BGP线路，无回国优化，物理距离长且带宽拥堵较为严重。",
+    pros: "价格极其廉价，大带宽，适合欧洲本地轻量业务或极低预算 of 海外落地。",
+    cons: "直连中国丢包率极高，延迟常年在200ms以上，极易连接超时。",
+    nightStatus: "晚高峰直连非常卡顿，丢包率可达30%以上，甚至可能短暂失联，直连基本不可用，必须中转。",
+    nightClass: "danger",
+    telecom: "★☆☆☆☆",
+    unicom: "★☆☆☆☆",
+    mobile: "★★☆☆☆",
+    label: "德国轻量BGP",
+    hint: "欧洲极廉落地，晚上直连卡死，必须中转",
+    color: "#f87171"
+  },
+  "LAX4837ISP": {
+    name: "LAX4837ISP",
+    area: "美国洛杉矶 (Los Angeles)",
+    emoji: "🇺🇸",
+    tags: ["双ISP住宅", "AS4837回国", "解锁神机"],
+    stability: "极佳",
+    stabilityClass: "status-excellent",
+    desc: "洛杉矶双ISP住宅属性线路，且回程强制三网走联通 AS4837 优化链路。",
+    pros: "兼具双ISP（模拟住宅网络）的极强流媒体/电商风控解锁能力，以及AS4837优化回国路线的低延迟与高吞吐速度。",
+    cons: "相较普通美西AS4837机型价格较贵，流量资源较为珍贵。",
+    nightStatus: "全天稳定性优秀，晚高峰期间会有极轻微延迟抖动，但速度与连通率依旧极高，直连无压力。",
+    nightClass: "",
+    telecom: "★★★★☆",
+    unicom: "★★★★★",
+    mobile: "★★★★☆",
+    label: "美西双ISP 4837",
+    hint: "双ISP住宅属性 + AS4837直连，流媒体全解锁，晚上极稳",
     color: "#34d399"
   }
 };

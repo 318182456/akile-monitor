@@ -1,6 +1,7 @@
 export interface Env {
   KV: KVNamespace;
   DB: D1Database;
+  ADMIN_PASSWORD?: string;
   TG_BOT_TOKEN?: string;
   TG_CHAT_ID?: string;
   MAX_PRICE?: string;

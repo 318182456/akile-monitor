@@ -1,6 +1,6 @@
 name = "akile-monitor"
 main = "src/index.ts"
-compatibility_date = "2026-07-10"
+compatibility_date = "2026-05-03"
 
 [observability]
 enabled = false
@@ -34,6 +34,7 @@ database_name = "akile-monitor-db"
 crons = ["*/1 * * * *"] # Every minute
 
 [vars]
+ADMIN_PASSWORD = "admin888"
 MAX_PRICE = "20"
 MARKET_MONITOR_ENABLED = "true"
 AKILE_EMAIL = "318182456@qq.com"

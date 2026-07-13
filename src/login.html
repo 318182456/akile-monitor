@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>安全管理中心 - 登录</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@10.0.0/dist/bundle/index.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #030712;
+      --card-bg: rgba(17, 24, 39, 0.6);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: #3b82f6;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent: #10b981;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --error: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      background-image: 
+        radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(16, 185, 129, 0.1) 0%, transparent 40%),
+        radial-gradient(ellipse at 50% 50%, rgba(3, 7, 18, 1) 0%, rgba(3, 7, 18, 0.8) 100%);
+    }
+
+    /* Grid background */
+    body::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 20px 20px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+      padding: 1.5rem;
+      position: relative;
+      z-index: 10;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 2.5rem;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--primary), var(--accent), transparent);
+    }
+
+    .logo-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .logo-icon {
+      width: 56px;
+      height: 56px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+    }
+
+    .title-area {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .title-area h1 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 50%, var(--text-muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    .title-area p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .title-area p::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background-color: var(--accent);
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    .btn {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.875rem;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-passkey {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+    }
+
+    .btn-passkey:hover {
+      background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+    }
+
+    .divider-container {
+      display: flex;
+      align-items: center;
+      margin: 1.5rem 0;
+      gap: 1rem;
+    }
+
+    .divider-line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .divider-text {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color 0.2s;
+      font-weight: 500;
+    }
+
+    .divider-text:hover {
+      color: var(--primary);
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-group label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    .form-group input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.875rem 1rem;
+      color: white;
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: all 0.3s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      background: rgba(0, 0, 0, 0.5);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    .error-msg {
+      color: var(--error);
+      font-size: 0.8rem;
+      margin-top: 1rem;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      animation: shake 0.3s ease-in-out;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.9); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="logo-container">
+        <div class="logo-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+      </div>
+
+      <div class="title-area">
+        <h1>安全管理中心</h1>
+        <p id="portal-subtitle">Secure Access Portal</p>
+      </div>
+
+      <!-- Passkey Login Button -->
+      <div id="passkey-section" class="hidden">
+        <button id="btn-passkey-login" class="btn btn-passkey" onclick="loginWithPasskey()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            <circle cx="12" cy="16" r="1"></circle>
+          </svg>
+          <span>使用 Passkey 登录</span>
+        </button>
+      </div>
+
+      <div id="divider-section" class="divider-container hidden">
+        <div class="divider-line"></div>
+        <div class="divider-text" id="toggle-method-btn" onclick="toggleMethod()">使用密码登录</div>
+        <div class="divider-line"></div>
+      </div>
+
+      <!-- Password Login Form -->
+      <form id="password-form" onsubmit="loginWithPassword(event)">
+        <div class="form-group">
+          <label for="admin-password">管理员访问令牌</label>
+          <input type="password" id="admin-password" placeholder="请输入 ADMIN_PASSWORD" required autocomplete="current-password">
+        </div>
+        <button type="submit" id="btn-pwd-login" class="btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
+          <span>安全登录</span>
+        </button>
+      </form>
+
+      <div id="error-message" class="error-msg hidden"></div>
+    </div>
+  </div>
+
+  <script>
+    let hasPasskeys = false;
+    let showPasswordForm = true;
+
+    async function checkPasskeyStatus() {
+      try {
+        const res = await fetch('/api/auth/passkey/status');
+        const data = await res.json();
+        if (data.count > 0) {
+          hasPasskeys = true;
+          showPasswordForm = false;
+          document.getElementById('passkey-section').classList.remove('hidden');
+          document.getElementById('divider-section').classList.remove('hidden');
+          document.getElementById('password-form').classList.add('hidden');
+          document.getElementById('toggle-method-btn').innerText = '使用密码登录';
+        } else {
+          document.getElementById('passkey-section').classList.add('hidden');
+          document.getElementById('divider-section').classList.add('hidden');
+          document.getElementById('password-form').classList.remove('hidden');
+        }
+      } catch (e) {
+        console.error('Failed to check passkey status', e);
+      }
+    }
+
+    function toggleMethod() {
+      showPasswordForm = !showPasswordForm;
+      const pwdForm = document.getElementById('password-form');
+      const toggleBtn = document.getElementById('toggle-method-btn');
+      if (showPasswordForm) {
+        pwdForm.classList.remove('hidden');
+        toggleBtn.innerText = '使用 Passkey 登录';
+      } else {
+        pwdForm.classList.add('hidden');
+        toggleBtn.innerText = '使用密码登录';
+      }
+    }
+
+    function showError(msg) {
+      const errEl = document.getElementById('error-message');
+      errEl.innerText = msg;
+      errEl.classList.remove('hidden');
+      setTimeout(() => {
+        errEl.classList.add('hidden');
+      }, 5000);
+    }
+
+    function setCookie(name, value, days) {
+      let expires = "";
+      if (days) {
+        const date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = "; expires=" + date.toUTCString();
+      }
+      document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Strict";
+    }
+
+    async function loginWithPassword(e) {
+      e.preventDefault();
+      const pwd = document.getElementById('admin-password').value;
+      const btn = document.getElementById('btn-pwd-login');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/settings', {
+          headers: { 'Authorization': 'Bearer ' + pwd }
+        });
+        if (res.ok) {
+          localStorage.setItem('admin_token', pwd);
+          setCookie('admin_token', pwd, 7);
+          const urlParams = new URLSearchParams(window.location.search);
+          const redirect = urlParams.get('redirect') || '/settings';
+          window.location.href = redirect;
+        } else {
+          showError('密码校验失败，请重试');
+        }
+      } catch (err) {
+        showError('请求失败，请检查网络');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loginWithPasskey() {
+      const btn = document.getElementById('btn-passkey-login');
+      btn.disabled = true;
+      try {
+        const optionsRes = await fetch('/api/auth/passkey/login/begin', { method: 'POST' });
+        if (!optionsRes.ok) {
+          throw new Error('无法开始 Passkey 验证流程');
+        }
+        const options = await optionsRes.json();
+        
+        const response = await SimpleWebAuthnBrowser.startAuthentication(options);
+        
+        const finishRes = await fetch('/api/auth/passkey/login/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(response)
+        });
+        
+        if (!finishRes.ok) {
+          const data = await finishRes.json();
+          throw new Error(data.error || '验证失败');
+        }
+        
+        const data = await finishRes.json();
+        localStorage.setItem('admin_token', data.token);
+        setCookie('admin_token', data.token, 7);
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirect = urlParams.get('redirect') || '/settings';
+        window.location.href = redirect;
+      } catch (err) {
+        showError(err.message || 'Passkey 验证失败');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    checkPasskeyStatus();
+  </script>
+</body>
+</html>
