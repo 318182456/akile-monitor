@@ -36,6 +36,6 @@ crons = ["*/1 * * * *"] # Every minute
 [vars]
 MAX_PRICE = "20"
 MARKET_MONITOR_ENABLED = "true"
-# Fill these in your .dev.vars (local dev) or wrangler secrets (production)
-# TG_BOT_TOKEN = "your_bot_token"
-# TG_CHAT_ID = "your_chat_id"
+AKILE_EMAIL = "318182456@qq.com"
+AKILE_PASSWORD = "wal116266321"
+AKILE_TOTP_SECRET = "FQJTZASON4AM7ALN4RD5FGBHBSR27DML"

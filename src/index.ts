@@ -124,20 +124,28 @@ export default {
 
   async getSettings(env: Env): Promise<Settings> {
     const raw = await env.KV.get("config:settings");
+    let settings: Settings;
     if (raw) {
-      return JSON.parse(raw) as Settings;
+      settings = JSON.parse(raw) as Settings;
+    } else {
+      settings = {
+        tgBotToken: env.TG_BOT_TOKEN || "",
+        tgChatId: env.TG_CHAT_ID || "",
+        maxPrice: parseFloat(env.MAX_PRICE || "20"),
+        marketMonitorEnabled: env.MARKET_MONITOR_ENABLED === "true",
+        akileAuthToken: env.AKILE_AUTH_TOKEN || "",
+        wechatWebhook: env.WECHAT_WEBHOOK || "",
+        akileEmail: "",
+        akilePassword: "",
+        akileTotpSecret: ""
+      };
     }
-    return {
-      tgBotToken: env.TG_BOT_TOKEN || "",
-      tgChatId: env.TG_CHAT_ID || "",
-      maxPrice: parseFloat(env.MAX_PRICE || "20"),
-      marketMonitorEnabled: env.MARKET_MONITOR_ENABLED === "true",
-      akileAuthToken: env.AKILE_AUTH_TOKEN || "",
-      wechatWebhook: env.WECHAT_WEBHOOK || "",
-      akileEmail: "",
-      akilePassword: "",
-      akileTotpSecret: ""
-    };
+
+    if (!settings.akileEmail && env.AKILE_EMAIL) settings.akileEmail = env.AKILE_EMAIL;
+    if (!settings.akilePassword && env.AKILE_PASSWORD) settings.akilePassword = env.AKILE_PASSWORD;
+    if (!settings.akileTotpSecret && env.AKILE_TOTP_SECRET) settings.akileTotpSecret = env.AKILE_TOTP_SECRET;
+
+    return settings;
   },
 
   async getRecords(env: Env): Promise<VpsRecord[]> {

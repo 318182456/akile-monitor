@@ -7,6 +7,9 @@ export interface Env {
   MARKET_MONITOR_ENABLED?: string;
   AKILE_AUTH_TOKEN?: string;
   WECHAT_WEBHOOK?: string;
+  AKILE_EMAIL?: string;
+  AKILE_PASSWORD?: string;
+  AKILE_TOTP_SECRET?: string;
 }
 
 export interface Settings {
