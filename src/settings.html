@@ -244,6 +244,18 @@
           <label for="akileAuthToken">Akile Authorization Token</label>
           <input type="password" id="akileAuthToken" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpX...">
         </div>
+        <div class="form-group">
+          <label for="akileEmail">Akile 账户邮箱 (用于自动登录刷新Token)</label>
+          <input type="email" id="akileEmail" placeholder="318182456@qq.com">
+        </div>
+        <div class="form-group">
+          <label for="akilePassword">Akile 账户密码</label>
+          <input type="password" id="akilePassword" placeholder="输入密码">
+        </div>
+        <div class="form-group">
+          <label for="akileTotpSecret">Akile TOTP 密钥 (如 FQJT...)</label>
+          <input type="password" id="akileTotpSecret" placeholder="输入两步验证 TOTP Secret">
+        </div>
         <div class="form-group switch-container">
           <label for="marketMonitor">监控二手交易市场 (Exchange)</label>
           <label class="switch">
@@ -269,6 +281,9 @@
         document.getElementById("akileAuthToken").value = settings.akileAuthToken || "";
         document.getElementById("wechatWebhook").value = settings.wechatWebhook || "";
         document.getElementById("marketMonitor").checked = settings.marketMonitorEnabled;
+        document.getElementById("akileEmail").value = settings.akileEmail || "";
+        document.getElementById("akilePassword").value = settings.akilePassword || "";
+        document.getElementById("akileTotpSecret").value = settings.akileTotpSecret || "";
       } catch (e) {
         console.error(e);
       }
@@ -282,6 +297,9 @@
       const maxPrice = parseFloat(document.getElementById("maxPrice").value);
       const akileAuthToken = document.getElementById("akileAuthToken").value;
       const marketMonitorEnabled = document.getElementById("marketMonitor").checked;
+      const akileEmail = document.getElementById("akileEmail").value;
+      const akilePassword = document.getElementById("akilePassword").value;
+      const akileTotpSecret = document.getElementById("akileTotpSecret").value;
 
       if (!wechatWebhook && (!tgBotToken || !tgChatId)) {
         showToast("请至少完整填写 Telegram 推送或企业微信群 Webhook 之一！", true);
@@ -292,7 +310,7 @@
         const res = await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tgBotToken, tgChatId, maxPrice, akileAuthToken, wechatWebhook, marketMonitorEnabled })
+          body: JSON.stringify({ tgBotToken, tgChatId, maxPrice, akileAuthToken, wechatWebhook, marketMonitorEnabled, akileEmail, akilePassword, akileTotpSecret })
         });
         if (res.ok) {
           showToast("配置保存成功！");

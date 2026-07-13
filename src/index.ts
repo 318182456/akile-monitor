@@ -1,5 +1,5 @@
 import { Env, Settings, VpsRecord } from "./types";
-import { runChecks } from "./monitor";
+import { runChecks, LINE_META } from "./monitor";
 
 // @ts-ignore - wrangler.toml matches *.html files via text loader
 import DASHBOARD_HTML from "./index.html";
@@ -49,6 +49,14 @@ export default {
         headers: { "Content-Type": "application/json", ...corsHeaders }
       });
     }
+
+    // API 路由: 获取线路元数据
+    if (url.pathname === "/api/lines") {
+      return new Response(JSON.stringify(LINE_META), {
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
+
 
     // API 路由: 获取指定主机的历史成交走势
     if (url.pathname === "/api/vps/history" && method === "GET") {
@@ -101,6 +109,9 @@ export default {
       if (body.marketMonitorEnabled !== undefined) settings.marketMonitorEnabled = body.marketMonitorEnabled;
       if (body.akileAuthToken !== undefined) settings.akileAuthToken = body.akileAuthToken;
       if (body.wechatWebhook !== undefined) settings.wechatWebhook = body.wechatWebhook;
+      if (body.akileEmail !== undefined) settings.akileEmail = body.akileEmail;
+      if (body.akilePassword !== undefined) settings.akilePassword = body.akilePassword;
+      if (body.akileTotpSecret !== undefined) settings.akileTotpSecret = body.akileTotpSecret;
 
       await env.KV.put("config:settings", JSON.stringify(settings));
       return new Response(JSON.stringify({ success: true, settings }), {
@@ -122,7 +133,10 @@ export default {
       maxPrice: parseFloat(env.MAX_PRICE || "20"),
       marketMonitorEnabled: env.MARKET_MONITOR_ENABLED === "true",
       akileAuthToken: env.AKILE_AUTH_TOKEN || "",
-      wechatWebhook: env.WECHAT_WEBHOOK || ""
+      wechatWebhook: env.WECHAT_WEBHOOK || "",
+      akileEmail: "",
+      akilePassword: "",
+      akileTotpSecret: ""
     };
   },
 

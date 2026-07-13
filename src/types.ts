@@ -16,6 +16,9 @@ export interface Settings {
   marketMonitorEnabled: boolean;
   akileAuthToken: string;
   wechatWebhook: string;
+  akileEmail?: string;
+  akilePassword?: string;
+  akileTotpSecret?: string;
 }
 
 export interface VpsRecord {
@@ -115,3 +118,24 @@ export interface PushProductResponse {
   list?: PushProduct[];
   total?: number;
 }
+
+export interface LineMeta {
+  name: string;
+  area: string;
+  emoji: string;
+  tags: string[];
+  stability: string;
+  stabilityClass: string;
+  desc: string;
+  pros: string;
+  cons: string;
+  nightStatus: string;
+  nightClass: string;
+  telecom: string;
+  unicom: string;
+  mobile: string;
+  label: string;
+  hint: string;
+  color: string;
+}
+

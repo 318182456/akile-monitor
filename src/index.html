@@ -577,8 +577,169 @@
     }
     .pagination-info {
       color: var(--text-muted);
-      font-size: 0.9rem;
-      margin: 0 0.5rem;
+    }
+    /* 折叠线路详情面板样式 */
+    .line-badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .line-badge-pill:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      filter: brightness(1.25);
+    }
+    
+    .line-details-collapse {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+      opacity: 0;
+      width: 100%;
+    }
+    
+    .line-details-collapse.active {
+      max-height: 800px;
+      opacity: 1;
+      margin-top: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .line-collapse-inner {
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-left-width: 4px;
+    }
+    
+    .line-collapse-section {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .line-collapse-section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .line-collapse-text {
+      font-size: 0.825rem;
+      line-height: 1.4;
+      color: var(--text);
+      margin-top: 0.15rem;
+    }
+    
+    .line-collapse-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    
+    .line-collapse-night-box {
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border-left: 3px solid #3b82f6;
+      background: rgba(59, 130, 246, 0.03);
+    }
+    
+    .line-collapse-night-box.warn {
+      border-left-color: #fbbf24;
+      background: rgba(245, 158, 11, 0.03);
+    }
+    
+    .line-collapse-night-box.danger {
+      border-left-color: #f87171;
+      background: rgba(239, 68, 68, 0.03);
+    }
+
+    /* 线路评测卡片样式 */
+    .line-info-card {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: all 0.3s;
+    }
+    .line-info-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15);
+    }
+    .line-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .line-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .line-badge {
+      font-size: 0.75rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .status-excellent { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .status-good { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .status-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .status-poor { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    
+    .line-scores {
+      display: flex;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+    }
+    .line-score-item {
+      flex: 1;
+      padding: 0.25rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 4px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .line-section-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 0.15rem;
+    }
+    .line-section-content {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .line-night-status {
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      background: rgba(59, 130, 246, 0.05);
+      border-left: 3px solid var(--primary);
+    }
+    .line-night-status.warn {
+      background: rgba(245, 158, 11, 0.05);
+      border-left-color: #fbbf24;
+    }
+    .line-night-status.danger {
+      background: rgba(239, 68, 68, 0.05);
+      border-left-color: #f87171;
     }
   </style>
 </head>
@@ -603,6 +764,7 @@
       <div class="tabs-header">
         <button class="tab-btn active" id="tabAll" onclick="switchTab('all')">低价监控归档</button>
         <button class="tab-btn" id="tabNew" onclick="switchTab('new')">⏳ 最近新上架机器</button>
+        <button class="tab-btn" id="tabLineInfo" onclick="switchTab('lineInfo')">🗺️ 线路特点与评测</button>
         
         <!-- 时间段筛选 (默认 2 小时) -->
         <div class="time-filter" id="timeFilterWrapper" style="display: none;">
@@ -740,6 +902,7 @@
   <script>
     let globalVpsList = [];
     let activeTab = 'all';
+    let LINE_META = {};
     
     // 分页与搜索状态变量
     let currentPage = 1;
@@ -793,8 +956,172 @@
       activeTab = tab;
       document.getElementById("tabAll").classList.toggle("active", tab === 'all');
       document.getElementById("tabNew").classList.toggle("active", tab === 'new');
+      document.getElementById("tabLineInfo").classList.toggle("active", tab === 'lineInfo');
       document.getElementById("timeFilterWrapper").style.display = tab === 'new' ? 'flex' : 'none';
+      
+      const searchWrapper = document.querySelector(".search-filter-wrapper");
+      if (searchWrapper) {
+        searchWrapper.style.display = tab === 'lineInfo' ? 'none' : 'flex';
+      }
+      
       renderVpsList();
+    }
+
+    function renderLineInfo() {
+      const container = document.getElementById("vpsGrid");
+      const paginationWrapper = document.getElementById("paginationWrapper");
+      paginationWrapper.innerHTML = ""; // 线路评测页不需分页
+      
+      const lines = Object.values(LINE_META);
+      
+      container.innerHTML = lines.map(line => {
+        return `
+          <div class="line-info-card">
+            <div class="line-card-header">
+              <span class="line-title">${line.emoji} ${line.name}</span>
+              <span class="line-badge ${line.stabilityClass}">晚高峰稳定性: ${line.stability}</span>
+            </div>
+            
+            <div style="display: flex; flex-wrap: wrap; gap: 0.35rem;">
+              ${line.tags.map(t => `<span class="ip-badge ip-ok" style="background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: #60a5fa;">${t}</span>`).join("")}
+            </div>
+            
+            <div class="line-scores">
+              <div class="line-score-item" style="color: #60a5fa;">电信: ${line.telecom}</div>
+              <div class="line-score-item" style="color: #fbbf24;">联通: ${line.unicom}</div>
+              <div class="line-score-item" style="color: #34d399;">移动: ${line.mobile}</div>
+            </div>
+            
+            <div>
+              <div class="line-section-title">线路地区</div>
+              <div class="line-section-content">${line.area}</div>
+            </div>
+            
+            <div>
+              <div class="line-section-title">线路特点</div>
+              <div class="line-section-content">${line.desc}</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div>
+                <div class="line-section-title" style="color: #34d399;">👍 优点</div>
+                <div class="line-section-content" style="font-size: 0.8rem;">${line.pros}</div>
+              </div>
+              <div>
+                <div class="line-section-title" style="color: #f87171;">👎 缺点</div>
+                <div class="line-section-content" style="font-size: 0.8rem;">${line.cons}</div>
+              </div>
+            </div>
+            
+            <div>
+              <div class="line-section-title" style="color: #60a5fa;">🌙 晚上是否掉线/丢包说明</div>
+              <div class="line-night-status ${line.nightClass === 'warn' ? 'warn' : line.nightClass === 'danger' ? 'danger' : ''}">
+                ${line.nightStatus}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function getNodeInfoBadge(nodeName, itemId) {
+      if (!nodeName) return "";
+      const name = nodeName.trim().toUpperCase();
+      
+      let matched = null;
+      for (const key in LINE_META) {
+        if (name === key || name.includes(key) || key.includes(name)) {
+          matched = LINE_META[key];
+          break;
+        }
+      }
+
+      if (!matched) return "";
+      
+      return `
+        <span class="line-badge-pill" style="background-color: ${matched.color}15; color: ${matched.color}; border: 1px solid ${matched.color}30; margin-left: 0.5rem; padding: 0.15rem 0.4rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.2rem; transition: all 0.2s;" onclick="toggleLineDetails(event, '${itemId}')" title="点击展开/收起该线路的详细测评与优缺点">
+          ${matched.label}
+          <svg class="line-arrow-icon" id="arrow-${itemId}" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.3s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </span>
+      `;
+    }
+
+    function getLineDetailsCollapse(nodeName, itemId) {
+      if (!nodeName) return "";
+      const name = nodeName.trim().toUpperCase();
+      
+      let matched = null;
+      for (const key in LINE_META) {
+        if (name === key || name.includes(key) || key.includes(name)) {
+          matched = LINE_META[key];
+          break;
+        }
+      }
+
+      if (!matched) return "";
+
+      const nightClass = matched.nightClass === 'warn' ? 'warn' : (matched.nightClass === 'danger' ? 'danger' : 'normal');
+
+      return `
+        <div class="line-details-collapse" id="line-details-${itemId}">
+          <div class="line-collapse-inner" style="border-left: 3px solid ${matched.color}; background: ${matched.color}05;">
+            <div class="line-collapse-section">
+              <span class="line-collapse-section-title">🗺️ 线路特点</span>
+              <p class="line-collapse-text">${matched.desc}</p>
+            </div>
+            
+            <div class="line-collapse-grid">
+              <div class="line-collapse-section">
+                <span class="line-collapse-section-title">📈 晚高峰稳定性</span>
+                <span class="line-badge ${matched.stabilityClass}" style="display: inline-block; margin-top: 0.2rem; align-self: flex-start;">${matched.stability}</span>
+              </div>
+              <div class="line-collapse-section">
+                <span class="line-collapse-section-title">📊 三网直连评分</span>
+                <div style="margin-top: 0.2rem; font-size: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <span style="color: #60a5fa; background: rgba(59, 130, 246, 0.1); padding: 0.1rem 0.3rem; border-radius: 4px;">电信 ${matched.telecom}</span>
+                  <span style="color: #fbbf24; background: rgba(245, 158, 11, 0.1); padding: 0.1rem 0.3rem; border-radius: 4px;">联通 ${matched.unicom}</span>
+                  <span style="color: #34d399; background: rgba(16, 185, 129, 0.1); padding: 0.1rem 0.3rem; border-radius: 4px;">移动 ${matched.mobile}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="line-collapse-section">
+              <span class="line-collapse-section-title" style="color: #34d399;">👍 优点</span>
+              <p class="line-collapse-text" style="color: rgba(255, 255, 255, 0.95); font-size: 0.8rem; margin-top: 0.1rem;">${matched.pros}</p>
+            </div>
+
+            <div class="line-collapse-section">
+              <span class="line-collapse-section-title" style="color: #f87171;">👎 缺点</span>
+              <p class="line-collapse-text" style="color: rgba(255, 255, 255, 0.95); font-size: 0.8rem; margin-top: 0.1rem;">${matched.cons}</p>
+            </div>
+
+            <div class="line-collapse-section line-collapse-night-box ${nightClass}">
+              <span class="line-collapse-section-title" style="font-weight: 600;">🌙 晚间丢包/断线说明</span>
+              <p class="line-collapse-text" style="margin-top: 0.15rem; font-size: 0.8rem;">${matched.nightStatus}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleLineDetails(event, itemId) {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      const panel = document.getElementById(`line-details-${itemId}`);
+      const arrow = document.getElementById(`arrow-${itemId}`);
+      
+      if (!panel) return;
+      
+      const isActive = panel.classList.contains("active");
+      
+      if (isActive) {
+        panel.classList.remove("active");
+        if (arrow) arrow.style.transform = "rotate(0deg)";
+      } else {
+        panel.classList.add("active");
+        if (arrow) arrow.style.transform = "rotate(180deg)";
+      }
     }
 
     // 统一汇率换算为人民币 (CNY)
@@ -825,6 +1152,11 @@
     function renderVpsList() {
       const container = document.getElementById("vpsGrid");
       const paginationWrapper = document.getElementById("paginationWrapper");
+      
+      if (activeTab === 'lineInfo') {
+        renderLineInfo();
+        return;
+      }
       
       // 1. 基准筛选 (低价监控归档 vs 最近新上架)
       let filtered = [...globalVpsList];
@@ -920,7 +1252,10 @@
               </tr>
               <tr>
                 <td class="label">节点</td>
-                <td class="value">${item.nodeName || '默认'}</td>
+                <td class="value">
+                  <strong>${item.nodeName || '默认'}</strong>
+                  ${getNodeInfoBadge(item.nodeName, item.id)}
+                </td>
               </tr>
               <tr>
                 <td class="label">配置</td>
@@ -939,6 +1274,8 @@
                 <td class="value">${dueStr}</td>
               </tr>
             </table>
+
+            ${getLineDetailsCollapse(item.nodeName, item.id)}
 
             <div class="vps-footer-row">
               <div class="price-tag">
@@ -964,6 +1301,10 @@
 
     async function fetchVpsList() {
       try {
+        if (!LINE_META || Object.keys(LINE_META).length === 0) {
+          const lineRes = await fetch("/api/lines");
+          LINE_META = await lineRes.json();
+        }
         const res = await fetch("/api/vps");
         globalVpsList = await res.json();
         renderVpsList();
