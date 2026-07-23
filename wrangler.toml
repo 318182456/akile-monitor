@@ -31,7 +31,7 @@ binding = "DB"
 database_name = "akile-monitor-db"
 
 [triggers]
-crons = ["*/1 * * * *"] # Every minute
+crons = ["*/5 * * * *"] # Every 5 minutes
 
 [vars]
 ADMIN_PASSWORD = "admin888"

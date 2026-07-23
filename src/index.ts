@@ -73,14 +73,20 @@ async function getPasskeys(kv: KVNamespace): Promise<StoredPasskey[]> {
   return raw ? JSON.parse(raw) : [];
 }
 
+// 进程内标志：表结构在本 Worker 实例生命周期内只初始化一次，
+// 避免每次 fetch 请求都执行 CREATE TABLE/INDEX（这些也会消耗 D1 写入配额）。
+let dbInitialized = false;
+
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(this.initializeDb(env).then(() => this.runChecks(env)));
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    // 自动初始化/检查表是否存在
-    await this.initializeDb(env);
+    // 表结构初始化仅在进程内首次请求时执行一次（scheduled 里也会保证）
+    if (!dbInitialized) {
+      await this.initializeDb(env);
+    }
 
     const url = new URL(request.url);
     const method = request.method;
@@ -416,6 +422,7 @@ export default {
   },
 
   async initializeDb(env: Env): Promise<void> {
+    if (dbInitialized) return;
     try {
       await env.DB.prepare(`
         CREATE TABLE IF NOT EXISTS vps_records (
@@ -450,6 +457,24 @@ export default {
       // 创建索引提高性能
       await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_vps_price ON vps_records(price)`).run();
       await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_vps_updated ON vps_records(updated_at)`).run();
+      // 历史走势查询按 (name, node_name, updated_at) 过滤，补一个复合索引
+      await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_vps_name_node ON vps_records(name, node_name)`).run();
+
+      // 价格历史表：每次某台机器价格变化时追加一行，用于计算“同规格历史均价”。
+      // spec_key 为规格指纹（cpu|memory|disk|flow|node_name|area），便于按规格聚合。
+      await env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS price_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          record_id TEXT NOT NULL,
+          spec_key TEXT NOT NULL,
+          price REAL NOT NULL,
+          recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run();
+      await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_ph_spec ON price_history(spec_key)`).run();
+      await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_ph_record ON price_history(record_id)`).run();
+
+      dbInitialized = true;
     } catch (e) {
       console.error(`Failed to initialize D1 database schema: ${e}`);
     }

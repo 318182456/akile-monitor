@@ -239,8 +239,12 @@
           <input type="password" id="wechatWebhook" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...">
         </div>
         <div class="form-group">
-          <label for="maxPrice">最大通知价格阈值 (JPY/CNY)</label>
+          <label for="maxPrice">通知价格上限 (CNY)</label>
           <input type="number" id="maxPrice" placeholder="如 20" required>
+          <small style="display:block; margin-top:0.4rem; color:var(--text-muted); font-size:0.8rem; line-height:1.5;">
+            通知触发条件：上架价 <strong>低于同规格历史均价</strong>（按 CPU/内存/硬盘/流量/节点/线路聚合）<strong>且</strong>不超过此上限。
+            新规格无历史数据时不通知。
+          </small>
         </div>
         <div class="form-group">
           <label>Akile 账户登录状态</label>
